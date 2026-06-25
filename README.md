@@ -19,28 +19,29 @@ The Android release APK does not contain game assets. You must provide your own 
 
 This port has been tested primarily on Snapdragon/Adreno handhelds. If graphics are incorrect, crashes happen at game start, or Vulkan device creation fails, your device may need a newer or different Vulkan driver.
 
-## What This Android Port Adds
+## What This Android Fork Adds
 
 - Android APK packaging for Zelda64 Recompiled
-- Public app data in `/sdcard/Zelda64`
-- On-screen controller overlay
-- A Controls menu option to disable touch controls completely
+- Updated UI and designs
+- On-screen touch controls option
+- Editor menu (advanced settings)
 - Android accelerometer/gyro input for gyro aim
 - Physical controller support through SDL
-- Android Vulkan fixes needed by RT64
+- Use custom turnip drivers 
+- Import o2r mods for clock styles 
 
 ## Storage Layout
 
 The app creates and uses:
 
 ```text
-/sdcard/Zelda64/
+/Zelda64/
   mods/
   saves/
   config/
 ```
 
-On first launch, Android may ask for storage access. Grant it so the app can create and manage `/sdcard/Zelda64`.
+On first launch, Android may ask for storage access. Grant it so the app can create and manage `/Zelda64`.
 
 ## Mods
 
@@ -52,7 +53,7 @@ Android cannot load desktop Linux, Windows, or macOS plugin binaries. Mods that 
 
 This fork includes a small set of Android-ready mods by default:
 
-- Linkzenic Save Editor
+- Linkzenic Save Editor is built into app (no need to install)
 - ProxyMM KV
 - yazmt Player Model Manager plugin
 
@@ -64,10 +65,10 @@ This project is not an emulator and does not include copyrighted game assets. Yo
 
 ## Known Beta Notes
 
+- App currently runs on AYN/Retroid style devices. I have NOT been able to tackle Samsung/Google specfic coding yet.
 - This is an early Android beta and may still have device-specific Vulkan or driver issues.
-- The current beta APK is debug-signed.
 - External mod compatibility depends on whether the mod is pure `.nrm` content or includes native code that must be rebuilt for Android.
-- If a native mod causes crashes, remove it from `/sdcard/Zelda64/mods` and try launching again.
+- If a native mod causes crashes, remove it from `/Zelda64/mods` and try launching again.
 
 
 This fork is based on Zelda64 Recompiled:

@@ -5,9 +5,11 @@ This fork packages [Zelda64 Recompiled](https://github.com/Zelda64Recomp/Zelda64
 ## Known Beta Notes
 
 - App currently runs on AYN/Retroid style devices. I have NOT been able to tackle Samsung/Google specfic coding yet.
+- App seems to be compatible with Snapdragon/Adreno, except in Samsung's strict proprietary echosystem - note this has largely to do with the core of RT64 upstream
 - This is an early Android beta and may still have device-specific Vulkan or driver issues.
-- External mod compatibility depends on whether the mod is pure `.nrm` content or includes native code that must be rebuilt for Android.
-- If a native mod causes crashes, remove it from `/Zelda64/mods` and try launching again.
+- I highly suggest using a Turnip Driver such as Mr Purple (https://github.com/MrPurple666/purple-turnip/releases)
+- External mod compatibility depends on whether the mod is pure `.nrm` content or includes native code that must be rebuilt for Android. (Note I've pre-bundled mods necessary for using character models).
+- If a mod causes crashes, remove it from `/Zelda64/mods` and try launching again.
 
 
 This fork is based on Zelda64 Recompiled:

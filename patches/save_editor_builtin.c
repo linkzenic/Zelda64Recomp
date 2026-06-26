@@ -21,6 +21,14 @@ static s32 clamp_s32(s32 value, s32 min, s32 max) {
     return value;
 }
 
+static s32 display_day_to_save_day(s32 day) {
+    return clamp_s32(day, 1, 4) - 1;
+}
+
+static s32 save_day_to_display_day(s32 day) {
+    return clamp_s32(day + 1, 1, 4);
+}
+
 static void set_upgrade_value(s32 upgrade, u32 value) {
     gSaveContext.save.saveInfo.inventory.upgrades =
         (GET_SAVE_INVENTORY_UPGRADES & gUpgradeNegMasks[upgrade]) | (value << gUpgradeShifts[upgrade]);
@@ -210,7 +218,7 @@ static void set_heart_piece_count(u32 count) {
 static void apply_live_day_time(PlayState* play, s32 day, s32 time, s32 time_speed_offset) {
     u8 event_inf_bits;
 
-    gSaveContext.save.day = clamp_s32(day, 1, 4);
+    gSaveContext.save.day = display_day_to_save_day(day);
     gSaveContext.save.eventDayCount = gSaveContext.save.day;
     gSaveContext.save.time = clamp_s32(time, 0, 0xFFFF);
     gSaveContext.save.timeSpeedOffset = clamp_s32(time_speed_offset, -2, 18);
@@ -224,8 +232,8 @@ static void apply_live_day_time(PlayState* play, s32 day, s32 time, s32 time_spe
 static void clamp_live_save(void) {
     s32 max_rupees = wallet_cap();
 
-    gSaveContext.save.day = clamp_s32(gSaveContext.save.day, 1, 4);
-    gSaveContext.save.eventDayCount = clamp_s32(gSaveContext.save.eventDayCount, 1, 4);
+    gSaveContext.save.day = clamp_s32(gSaveContext.save.day, 0, 3);
+    gSaveContext.save.eventDayCount = clamp_s32(gSaveContext.save.eventDayCount, 0, 3);
     gSaveContext.save.timeSpeedOffset = clamp_s32(gSaveContext.save.timeSpeedOffset, -2, 18);
     gSaveContext.save.saveInfo.playerData.healthCapacity =
         clamp_s32(gSaveContext.save.saveInfo.playerData.healthCapacity, MIN_HEARTS * 0x10, MAX_HEARTS * 0x10);
@@ -246,7 +254,7 @@ static void clamp_live_save(void) {
 
 static void sync_snapshot_from_save(void) {
     clamp_live_save();
-    recomp_save_editor_set_snapshot_value(SAVE_EDITOR_VALUE_DAY, gSaveContext.save.day);
+    recomp_save_editor_set_snapshot_value(SAVE_EDITOR_VALUE_DAY, save_day_to_display_day(gSaveContext.save.day));
     recomp_save_editor_set_snapshot_value(SAVE_EDITOR_VALUE_TIME, gSaveContext.save.time);
     recomp_save_editor_set_snapshot_value(SAVE_EDITOR_VALUE_TIME_SPEED, gSaveContext.save.timeSpeedOffset);
     recomp_save_editor_set_snapshot_value(SAVE_EDITOR_VALUE_TATL, gSaveContext.save.hasTatl ? 1 : 0);

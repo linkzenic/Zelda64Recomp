@@ -18,7 +18,8 @@ extern "C" void recomp_get_pending_warp(uint8_t* rdram, recomp_context* ctx) {
 }
 
 void zelda64::set_time(uint8_t day, uint8_t hour, uint8_t minute) {
-    pending_set_time.store((day << 16) | (uint16_t(hour) << 8) | minute);
+    uint8_t save_day = day > 0 ? day - 1 : 0;
+    pending_set_time.store((save_day << 16) | (uint16_t(hour) << 8) | minute);
 }
 
 extern "C" void recomp_get_pending_set_time(uint8_t* rdram, recomp_context* ctx) {

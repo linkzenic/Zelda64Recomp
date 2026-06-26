@@ -26,7 +26,7 @@ Get the current Android beta from this fork's releases:
 
 https://github.com/linkzenic/Zelda64Recomp-Android/releases
 
-The Android release APK does not contain game assets. You must provide your own supported Majora's Mask ROM when the app asks for it.
+The Android release APK does not contain game assets. You must provide your own supported ROM when the app asks for it.
 
 ## Android Requirements
 

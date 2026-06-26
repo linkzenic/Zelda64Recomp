@@ -2,6 +2,22 @@
 
 This fork packages [Zelda64 Recompiled](https://github.com/Zelda64Recomp/Zelda64Recomp) for Android. It is an early beta Android port of Recompiled with RT64 rendering, SDL input, public device storage, touch controls, Android motion controls, and Android-native mod support.
 
+## Known Beta Notes
+
+- App currently runs on AYN/Retroid style devices. I have NOT been able to tackle Samsung/Google specfic coding yet.
+- This is an early Android beta and may still have device-specific Vulkan or driver issues.
+- External mod compatibility depends on whether the mod is pure `.nrm` content or includes native code that must be rebuilt for Android.
+- If a native mod causes crashes, remove it from `/Zelda64/mods` and try launching again.
+
+
+This fork is based on Zelda64 Recompiled:
+
+https://github.com/Zelda64Recomp/Zelda64Recomp
+
+Zelda64 Recompiled uses [N64: Recompiled](https://github.com/Mr-Wiseguy/N64Recomp), with [RT64](https://github.com/rt64/rt64) as the rendering engine.
+
+For general Zelda64 Recompiled information, modding documentation, and desktop releases, see the upstream repository.
+
 ## Download
 
 Get the current Android beta from this fork's releases:
@@ -63,21 +79,6 @@ ProxyMM KV and the player model manager are bundled as complete mod packages, no
 
 This project is not an emulator and does not include copyrighted game assets. You need a legally obtained supported ROM. The app will ask you to select it before starting the game.
 
-## Known Beta Notes
-
-- App currently runs on AYN/Retroid style devices. I have NOT been able to tackle Samsung/Google specfic coding yet.
-- This is an early Android beta and may still have device-specific Vulkan or driver issues.
-- External mod compatibility depends on whether the mod is pure `.nrm` content or includes native code that must be rebuilt for Android.
-- If a native mod causes crashes, remove it from `/Zelda64/mods` and try launching again.
-
-
-This fork is based on Zelda64 Recompiled:
-
-https://github.com/Zelda64Recomp/Zelda64Recomp
-
-Zelda64 Recompiled uses [N64: Recompiled](https://github.com/Mr-Wiseguy/N64Recomp), with [RT64](https://github.com/rt64/rt64) as the rendering engine.
-
-For general Zelda64 Recompiled information, modding documentation, and desktop releases, see the upstream repository.
 
 ## Credits
 

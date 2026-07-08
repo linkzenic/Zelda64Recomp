@@ -120,6 +120,18 @@ namespace zelda64 {
     void set_dpad_items_mode(DpadItemsMode mode);
     bool get_dpad_items_enabled();
 
+    bool get_compat_fd_anywhere_enabled();
+    void set_compat_fd_anywhere_enabled(bool enabled);
+
+    bool get_compat_fast_mask_enabled();
+    void set_compat_fast_mask_enabled(bool enabled);
+
+    bool get_compat_owls_never_quit_enabled();
+    void set_compat_owls_never_quit_enabled(bool enabled);
+
+    bool get_compat_bomb_arrows_enabled();
+    void set_compat_bomb_arrows_enabled(bool enabled);
+
     enum class AdvancedSettingsMode {
         Off,
         On,

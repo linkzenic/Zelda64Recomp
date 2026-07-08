@@ -24,7 +24,36 @@ final boolean zeldaProbe = (zeldaVulkanProbe || zeldaJavaProbe || zeldaNoopSdlPr
 final boolean zeldaRuntimeApk = !zeldaProbe && !zeldaVulkanProbe
 final boolean zeldaNativeOptimized = (project.findProperty('zeldaNativeOptimized') ?: (zeldaRuntimeApk ? 'true' : 'false')).toString().toBoolean()
 final boolean zeldaLiteBuild = (project.findProperty('zeldaLiteBuild') ?: 'false').toString().toBoolean()
-final String zeldaApplicationId = (project.findProperty('zeldaApplicationId') ?: 'io.github.zelda64recomp').toString()
+final boolean zeldaCompatibilityBuild = (project.findProperty('zeldaCompatibilityBuild') ?: 'false').toString().toBoolean()
+final String zeldaCompatibilityModelPackDir = (project.findProperty('zeldaCompatibilityModelPackDir') ?: '').toString()
+final String zeldaDefaultApplicationId = zeldaCompatibilityBuild ? 'io.github.zelda64recomp.compat' : 'io.github.zelda64recomp'
+final String zeldaApplicationId = (project.findProperty('zeldaApplicationId') ?: zeldaDefaultApplicationId).toString()
+String zeldaVersionName = '0.6.5'
+if (zeldaJavaProbe) {
+    zeldaVersionName = '0.6.5-android-java-probe'
+} else if (zeldaSdlNoThreadProbe) {
+    zeldaVersionName = '0.6.5-android-sdl-no-thread-probe'
+} else if (zeldaNoopSdlProbe) {
+    zeldaVersionName = '0.6.5-android-sdl-noop-probe'
+} else if (zeldaVulkanProbe) {
+    zeldaVersionName = '0.6.5-android-vulkan-probe'
+} else if (zeldaRt64SetupProbe) {
+    zeldaVersionName = '0.6.5-rt64-setup-probe'
+} else if (zeldaRt64PostInitProbe) {
+    zeldaVersionName = '0.6.5-rt64-post-init-probe'
+} else if (zeldaRt64FirstUpdateProbe) {
+    zeldaVersionName = '0.6.5-rt64-first-update-probe'
+} else if (zeldaRt64FirstDlProbe) {
+    zeldaVersionName = '0.6.5-rt64-first-dl-probe'
+} else if (zeldaRt64DlStageProbe) {
+    zeldaVersionName = "0.6.5-rt64-dl-stage-${zeldaRt64DlProbeStage}-probe"
+} else if (zeldaProbe) {
+    zeldaVersionName = '0.6.5-android-sdl-probe'
+} else if (zeldaLiteBuild) {
+    zeldaVersionName = '0.6.5-lite'
+} else if (zeldaCompatibilityBuild) {
+    zeldaVersionName = '0.6.5-compat'
+}
 final String androidKeystorePath = (project.findProperty('ANDROID_KEYSTORE_PATH') ?: System.getenv('ANDROID_KEYSTORE_PATH') ?: '').toString()
 final String androidKeystorePassword = (project.findProperty('ANDROID_KEYSTORE_PASSWORD') ?: System.getenv('ANDROID_KEYSTORE_PASSWORD') ?: '').toString()
 final String androidKeyAlias = (project.findProperty('ANDROID_KEY_ALIAS') ?: System.getenv('ANDROID_KEY_ALIAS') ?: '').toString()
@@ -33,6 +62,7 @@ final boolean hasAndroidReleaseSigning = androidKeystorePath && androidKeystoreP
 final File generatedJniLibsDir = layout.buildDirectory.dir('generated/jniLibs').get().asFile
 final File generatedProgramAssetsDir = layout.buildDirectory.dir('generated/programAssets').get().asFile
 final File bundledModsAssetsDir = file('src/main/assets/bundled_mods')
+final File compatibilityModelPackDir = zeldaCompatibilityModelPackDir ? file(zeldaCompatibilityModelPackDir) : null
 
 android {
     namespace 'io.github.zelda64recomp'
@@ -43,11 +73,12 @@ android {
         minSdk 24
         targetSdk 36
         versionCode 65
-        versionName zeldaJavaProbe ? '0.6.5-android-java-probe' : (zeldaSdlNoThreadProbe ? '0.6.5-android-sdl-no-thread-probe' : (zeldaNoopSdlProbe ? '0.6.5-android-sdl-noop-probe' : (zeldaVulkanProbe ? '0.6.5-android-vulkan-probe' : (zeldaRt64SetupProbe ? '0.6.5-rt64-setup-probe' : (zeldaRt64PostInitProbe ? '0.6.5-rt64-post-init-probe' : (zeldaRt64FirstUpdateProbe ? '0.6.5-rt64-first-update-probe' : (zeldaRt64FirstDlProbe ? '0.6.5-rt64-first-dl-probe' : (zeldaRt64DlStageProbe ? "0.6.5-rt64-dl-stage-${zeldaRt64DlProbeStage}-probe" : (zeldaProbe ? '0.6.5-android-sdl-probe' : (zeldaLiteBuild ? '0.6.5-lite' : '0.6.5'))))))))))
+        versionName zeldaVersionName
         manifestPlaceholders = [
             zeldaActivityName: zeldaJavaProbe ? 'io.github.zelda64recomp.JavaProbeActivity' : 'io.github.zelda64recomp.ZeldaSDLActivity'
         ]
         buildConfigField 'boolean', 'ZELDA_LITE_BUILD', zeldaLiteBuild ? 'true' : 'false'
+        buildConfigField 'boolean', 'ZELDA_COMPATIBILITY_BUILD', zeldaCompatibilityBuild ? 'true' : 'false'
         buildConfigField 'boolean', 'ZELDA_JAVA_PROBE', zeldaJavaProbe ? 'true' : 'false'
         buildConfigField 'boolean', 'ZELDA_SDL_NO_THREAD_PROBE', zeldaSdlNoThreadProbe ? 'true' : 'false'
         buildConfigField 'boolean', 'ZELDA_RT64_SETUP_PROBE', zeldaRt64SetupProbe ? 'true' : 'false'
@@ -166,6 +197,9 @@ tasks.register('validateAndroidBuildEnvironment') {
             requirePath(new File(freetypePrefix, 'include/freetype2'), 'ZELDA_ANDROID_FREETYPE_PREFIX is missing Freetype headers')
             requirePath(new File(freetypePrefix, 'lib/libfreetype.a'), 'ZELDA_ANDROID_FREETYPE_PREFIX is missing static Freetype library')
         }
+        if (zeldaCompatibilityBuild && compatibilityModelPackDir != null) {
+            requirePath(compatibilityModelPackDir, 'zeldaCompatibilityModelPackDir does not point at a model pack directory')
+        }
     }
 }
 
@@ -232,6 +266,16 @@ if (zeldaRuntimeApk) {
             dependsOn tasks.named('validateAndroidBundledNativeMods')
             from(bundledModsAssetsDir) {
                 into('bundled_mods')
+                if (zeldaCompatibilityBuild) {
+                    exclude 'yazmt_mm_playermodelmanager_fsmodels_extlib.so'
+                }
+            }
+        }
+        if (zeldaCompatibilityBuild && compatibilityModelPackDir != null) {
+            from(compatibilityModelPackDir) {
+                into('compat_builtin_models')
+                exclude 'oot.z64', 'oot.v64', 'oot.n64'
+                exclude '**/.DS_Store'
             }
         }
         into(generatedProgramAssetsDir)

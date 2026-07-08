@@ -26,7 +26,13 @@
 #include "librecomp/addresses.hpp"
 #include "ultramodern/error_handling.hpp"
 
+#if defined(__ANDROID__)
+#include <android/log.h>
+#endif
+
 using namespace recompui;
+
+extern "C" {
 
 // Contexts
 void recompui_create_context(uint8_t* rdram, recomp_context* ctx) {
@@ -843,6 +849,18 @@ void recompui_register_callback(uint8_t* rdram, recomp_context* ctx) {
     PTR(void) callback = _arg<1, PTR(void)>(rdram, ctx);
     PTR(void) userdata = _arg<2, PTR(void)>(rdram, ctx);
 
+#if defined(__ANDROID__)
+    static int logged_registered_callbacks = 0;
+    if (logged_registered_callbacks < 80) {
+        __android_log_print(ANDROID_LOG_INFO,
+                            "ZeldaPMM",
+                            "ui register resource=%u callback=0x%08X userdata=0x%08X",
+                            resource->get_resource_id().slot_id,
+                            callback,
+                            userdata);
+        logged_registered_callbacks++;
+    }
+#endif
     element->register_callback(ui_context, callback, userdata);
 }
 
@@ -923,6 +941,8 @@ void recompui_set_nav(uint8_t* rdram, recomp_context* ctx) {
     u32 nav_dir = _arg<1, u32>(rdram, ctx);
 
     element->set_nav(static_cast<recompui::NavDirection>(nav_dir), target_element);
+}
+
 }
 
 #define REGISTER_FUNC(name) recomp::overlays::register_base_export(#name, name)

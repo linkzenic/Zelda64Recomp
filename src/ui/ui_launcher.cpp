@@ -17,16 +17,20 @@ bool safe_mode_enabled = false;
 extern std::vector<recomp::GameEntry> supported_games;
 
 static bool n64_mode_from_env() {
-    const char* safe_mode = std::getenv("APP_SAFE_MODE");
     const char* n64_mode = std::getenv("APP_N64_MODE");
-    return (safe_mode != nullptr && safe_mode[0] == '1') ||
-        (n64_mode != nullptr && n64_mode[0] == '1');
+    return n64_mode != nullptr && n64_mode[0] == '1';
 }
 
-static void set_n64_mode(bool enabled) {
-    safe_mode_enabled = enabled;
-    setenv("APP_SAFE_MODE", enabled ? "1" : "0", 1);
-    setenv("APP_N64_MODE", enabled ? "1" : "0", 1);
+static bool force_n64_mode_from_env() {
+    const char* force_n64_mode = std::getenv("APP_ANDROID_FORCE_N64_MODE");
+    return force_n64_mode != nullptr && force_n64_mode[0] == '1';
+}
+
+static void set_android_game_mode(bool skip_code_mods, bool n64_mode) {
+    safe_mode_enabled = n64_mode;
+    setenv("APP_SAFE_MODE", n64_mode ? "1" : "0", 1);
+    setenv("APP_N64_MODE", n64_mode ? "1" : "0", 1);
+    setenv("APP_ANDROID_SKIP_CODE_MODS", skip_code_mods ? "1" : "0", 1);
     if (model_handle) {
         model_handle.DirtyVariable("safe_mode_enabled");
     }
@@ -98,14 +102,14 @@ public:
         );
         recompui::register_event(listener, "start_game",
             [](const std::string& param, Rml::Event& event) {
-                set_n64_mode(false);
+                set_android_game_mode(force_n64_mode_from_env(), false);
                 recomp::start_game(supported_games[0].game_id);
                 recompui::hide_all_contexts();
             }
         );
         recompui::register_event(listener, "start_safe_mode",
             [](const std::string& param, Rml::Event& event) {
-                set_n64_mode(true);
+                set_android_game_mode(true, true);
                 recomp::start_game(supported_games[0].game_id);
                 recompui::hide_all_contexts();
             }

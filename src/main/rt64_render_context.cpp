@@ -51,6 +51,11 @@ static bool android_emulator_enabled() {
     return android_property_equals("ro.kernel.qemu", "1") ||
         android_property_equals("ro.boot.qemu", "1");
 }
+
+static bool android_n64_mode_enabled() {
+    const char* n64_mode = std::getenv("APP_N64_MODE");
+    return n64_mode != nullptr && n64_mode[0] == '1';
+}
 #endif
 
 struct TexturePackEnableAction {
@@ -206,7 +211,7 @@ void set_application_user_config(RT64::Application* application, const ultramode
     application->userConfig.internalColorFormat = to_rt64(config.hpfb_option);
     application->userConfig.displayBuffering = RT64::UserConfiguration::DisplayBuffering::Triple;
 #if defined(__ANDROID__)
-    if (android_emulator_enabled()) {
+    if (android_emulator_enabled() && android_n64_mode_enabled()) {
         application->userConfig.resolution = RT64::UserConfiguration::Resolution::Original;
         application->userConfig.resolutionMultiplier = 1.0;
         application->userConfig.aspectRatio = RT64::UserConfiguration::AspectRatio::Original;
@@ -217,7 +222,7 @@ void set_application_user_config(RT64::Application* application, const ultramode
         application->userConfig.hardwareResolve = RT64::UserConfiguration::HardwareResolve::Disabled;
         application->userConfig.displayBuffering = RT64::UserConfiguration::DisplayBuffering::Double;
         application->userConfig.downsampleMultiplier = 1;
-        ZELDA_ANDROID_RT64_LOG("Android emulator detected; using low-risk native-resolution RT64 config");
+        ZELDA_ANDROID_RT64_LOG("Android emulator N64 mode active; using low-risk native-resolution RT64 config");
     }
 #endif
 }

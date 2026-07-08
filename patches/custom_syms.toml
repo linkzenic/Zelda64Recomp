@@ -14,6 +14,18 @@ symbols = [
     { name = "TitleSetup_Init_NORELOCATE", vram = 0x80803F30 },
     { name = "FileSelect_Init_NORELOCATE", vram = 0x80813C98 },
     { name = "DayTelop_Init_NORELOCATE", vram = 0x80815820 },
+    { name = "D_801BF9BC", vram = 0x801BF9BC },
+    { name = "D_801BF9D4", vram = 0x801BF9D4 },
+    { name = "D_801BF9DC", vram = 0x801BF9DC },
+    { name = "D_801BF9E4", vram = 0x801BF9E4 },
+    { name = "D_801BFAF4", vram = 0x801BFAF4 },
+    { name = "D_801BFAFC", vram = 0x801BFAFC },
+    { name = "D_801BFB04", vram = 0x801BFB04 },
+    { name = "D_801BFB0C", vram = 0x801BFB0C },
+    { name = "sCButtonPosX", vram = 0x8082B484 },
+    { name = "sCButtonPosY", vram = 0x8082B48C },
+    { name = "sMaskCButtonPosX", vram = 0x8082B6D4 },
+    { name = "sMaskCButtonPosY", vram = 0x8082B6DC },
 ]
 
 [[section]]

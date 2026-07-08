@@ -25,6 +25,10 @@
 
 #include "../patches/ui_funcs.h"
 
+#if defined(__ANDROID__)
+#include <android/log.h>
+#endif
+
 struct QueuedCallback {
     recompui::ResourceId resource;
     recompui::Event event;
@@ -34,6 +38,19 @@ struct QueuedCallback {
 moodycamel::ConcurrentQueue<QueuedCallback> queued_callbacks{};
 
 void recompui::queue_ui_callback(recompui::ResourceId resource, const Event& e, const UICallback& callback) {
+#if defined(__ANDROID__)
+    static int logged_queued_callbacks = 0;
+    if (logged_queued_callbacks < 40) {
+        __android_log_print(ANDROID_LOG_INFO,
+                            "ZeldaPMM",
+                            "ui queued resource=%u event=%d callback=0x%08X userdata=0x%08X",
+                            resource.slot_id,
+                            static_cast<int>(e.type),
+                            callback.callback,
+                            callback.userdata);
+        logged_queued_callbacks++;
+    }
+#endif
     queued_callbacks.enqueue(QueuedCallback{ .resource = resource, .event = e, .callback = callback });
 }
 
@@ -102,6 +119,19 @@ extern "C" void recomp_run_ui_callbacks(uint8_t* rdram, recomp_context* ctx) {
 
     while (queued_callbacks.try_dequeue(cur_callback)) {
         if (convert_event(cur_callback.event, *event_data)) {
+#if defined(__ANDROID__)
+            static int logged_drained_callbacks = 0;
+            if (logged_drained_callbacks < 40) {
+                __android_log_print(ANDROID_LOG_INFO,
+                                    "ZeldaPMM",
+                                    "ui drain resource=%u event=%d callback=0x%08X userdata=0x%08X",
+                                    cur_callback.resource.slot_id,
+                                    static_cast<int>(cur_callback.event.type),
+                                    cur_callback.callback.callback,
+                                    cur_callback.callback.userdata);
+                logged_drained_callbacks++;
+            }
+#endif
             recompui::ContextId cur_context = cur_callback.callback.context;
             cur_context.open();
 

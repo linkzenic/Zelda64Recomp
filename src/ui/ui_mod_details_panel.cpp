@@ -84,7 +84,8 @@ void ModDetailsPanel::disable_toggle() {
     enable_toggle->set_enabled(false);
 }
 
-void ModDetailsPanel::set_mod_details(const recomp::mods::ModDetails& details, const std::string &thumbnail, bool toggle_checked, bool toggle_enabled, bool toggle_label_visible, bool configure_enabled) {
+void ModDetailsPanel::set_mod_details(const recomp::mods::ModDetails& details, const std::string &thumbnail, bool toggle_checked,
+    bool toggle_enabled, bool toggle_label_visible, bool configure_enabled, const std::string& toggle_label_text) {
     cur_details = details;
 
     thumbnail_image->set_src(thumbnail);
@@ -104,6 +105,7 @@ void ModDetailsPanel::set_mod_details(const recomp::mods::ModDetails& details, c
     enable_toggle->set_checked(toggle_checked);
     enable_toggle->set_enabled(toggle_enabled);
     configure_button->set_enabled(configure_enabled);
+    enable_label->set_text(toggle_label_text);
     enable_label->set_display(toggle_label_visible ? Display::Block : Display::None);
 
     if (configure_enabled) {

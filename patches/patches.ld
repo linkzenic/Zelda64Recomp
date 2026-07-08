@@ -12,6 +12,9 @@ SECTIONS {
     .text          : { *(.text*)                                 } >extram AT >rom
     .recomp_patch  : { *(.recomp_patch*) *(.recomp_force_patch*) } >extram AT >rom
     .recomp_export : { *(.recomp_export*)                        } >extram AT >rom
+    .recomp_import : { *(.recomp_import*)                        } >extram AT >rom
+    .recomp_callback : { *(.recomp_callback*)                    } >extram AT >rom
+    .recomp_hook : { *(.recomp_hook*) *(.recomp_hook_return*)    } >extram AT >rom
     .recomp_event  : { *(.recomp_event*)                         } >extram AT >rom
     .rodata        : { *(.rodata*)                               } >extram AT >rom
     .data          : { *(.data*)                                 } >extram AT >rom

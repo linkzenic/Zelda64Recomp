@@ -254,6 +254,10 @@ struct ControlOptionsContext {
     int analog_camera_distance; // 100 to 900, free camera distance in world units
     zelda64::CameraInvertMode analog_camera_invert_mode;
     zelda64::DpadItemsMode dpad_items_mode;
+    bool compat_fd_anywhere_enabled;
+    bool compat_fast_mask_enabled;
+    bool compat_owls_never_quit_enabled;
+    bool compat_bomb_arrows_enabled;
     zelda64::AdvancedSettingsMode advanced_settings_mode;
 };
 
@@ -426,6 +430,38 @@ void zelda64::set_dpad_items_mode(zelda64::DpadItemsMode mode) {
 
 bool zelda64::get_dpad_items_enabled() {
     return control_options_context.dpad_items_mode == zelda64::DpadItemsMode::On;
+}
+
+bool zelda64::get_compat_fd_anywhere_enabled() {
+    return control_options_context.compat_fd_anywhere_enabled;
+}
+
+void zelda64::set_compat_fd_anywhere_enabled(bool enabled) {
+    control_options_context.compat_fd_anywhere_enabled = enabled;
+}
+
+bool zelda64::get_compat_fast_mask_enabled() {
+    return control_options_context.compat_fast_mask_enabled;
+}
+
+void zelda64::set_compat_fast_mask_enabled(bool enabled) {
+    control_options_context.compat_fast_mask_enabled = enabled;
+}
+
+bool zelda64::get_compat_owls_never_quit_enabled() {
+    return control_options_context.compat_owls_never_quit_enabled;
+}
+
+void zelda64::set_compat_owls_never_quit_enabled(bool enabled) {
+    control_options_context.compat_owls_never_quit_enabled = enabled;
+}
+
+bool zelda64::get_compat_bomb_arrows_enabled() {
+    return control_options_context.compat_bomb_arrows_enabled;
+}
+
+void zelda64::set_compat_bomb_arrows_enabled(bool enabled) {
+    control_options_context.compat_bomb_arrows_enabled = enabled;
 }
 
 zelda64::AdvancedSettingsMode zelda64::get_advanced_settings_mode() {

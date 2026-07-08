@@ -100,6 +100,16 @@ static bool android_safe_mode_enabled() {
     return safe_mode != nullptr && safe_mode[0] == '1';
 }
 
+static bool android_skip_code_mods_enabled() {
+    const char* skip_code_mods = std::getenv("APP_ANDROID_SKIP_CODE_MODS");
+    return (skip_code_mods != nullptr && skip_code_mods[0] == '1') || android_safe_mode_enabled();
+}
+
+static bool android_compatibility_build_enabled() {
+    const char* compatibility_build = std::getenv("APP_ANDROID_COMPATIBILITY_BUILD");
+    return compatibility_build != nullptr && compatibility_build[0] == '1';
+}
+
 static bool android_string_equals_ci(const char* value, const char* expected) {
     if (value == nullptr || expected == nullptr) {
         return false;
@@ -222,8 +232,8 @@ static std::list<std::filesystem::path> parse_pending_mod_paths(const char* pend
 }
 
 static void install_pending_android_mods() {
-    if (android_safe_mode_enabled()) {
-        ZELDA_ANDROID_LOG("safe mode active; pending mod installation skipped");
+    if (android_skip_code_mods_enabled()) {
+        ZELDA_ANDROID_LOG("code mods disabled; pending mod installation skipped");
         SDL_setenv("APP_PENDING_MOD_PATHS", "", true);
         return;
     }
@@ -592,6 +602,42 @@ extern "C" void recomp_android_should_use_sync_boot_dma(uint8_t* rdram, recomp_c
 extern "C" void recomp_android_reset_effect_ss_table(uint8_t* rdram, recomp_context* ctx);
 extern "C" void recomp_android_get_entrance_scene_spawn(uint8_t* rdram, recomp_context* ctx);
 extern "C" void recomp_android_load_yaz0(uint8_t* rdram, recomp_context* ctx);
+extern "C" void recomp_android_compat_pmm_apply_log(uint8_t* rdram, recomp_context* ctx);
+extern "C" void PMMZobj_setPMMDir(uint8_t* rdram, recomp_context* ctx);
+extern "C" void PMMZobj_scanForDiskEntries(uint8_t* rdram, recomp_context* ctx);
+extern "C" void PMMZobj_getNumDiskEntries(uint8_t* rdram, recomp_context* ctx);
+extern "C" void PMMZobj_entryInternalNameLength(uint8_t* rdram, recomp_context* ctx);
+extern "C" void PMMZobj_entryDisplayNameLength(uint8_t* rdram, recomp_context* ctx);
+extern "C" void PMMZobj_entryAuthorNameLength(uint8_t* rdram, recomp_context* ctx);
+extern "C" void PMMZobj_writeInternalNameToBuffer(uint8_t* rdram, recomp_context* ctx);
+extern "C" void PMMZobj_writeDisplayNameToBuffer(uint8_t* rdram, recomp_context* ctx);
+extern "C" void PMMZobj_writeAuthorNameToBuffer(uint8_t* rdram, recomp_context* ctx);
+extern "C" void PMMZobj_getEntryFileSize(uint8_t* rdram, recomp_context* ctx);
+extern "C" void PMMZobj_getEntryFileData(uint8_t* rdram, recomp_context* ctx);
+extern "C" void PMMZobj_createDirectory(uint8_t* rdram, recomp_context* ctx);
+extern "C" void PMMZobj_isDirectoryExist(uint8_t* rdram, recomp_context* ctx);
+extern "C" void PMMZobj_readEntryU8(uint8_t* rdram, recomp_context* ctx);
+extern "C" void PMMZobj_readEntryU16(uint8_t* rdram, recomp_context* ctx);
+extern "C" void PMMZobj_readEntryU32(uint8_t* rdram, recomp_context* ctx);
+extern "C" void PMMZobj_isModelType(uint8_t* rdram, recomp_context* ctx);
+extern "C" void PMMZobj_clearDiskEntries(uint8_t* rdram, recomp_context* ctx);
+extern "C" void PMMZobj_tryLoadOOTROM(uint8_t* rdram, recomp_context* ctx);
+extern "C" void PMMZobj_unloadOOTROM(uint8_t* rdram, recomp_context* ctx);
+extern "C" void PMMZobj_isOOTRomLoaded(uint8_t* rdram, recomp_context* ctx);
+extern "C" void PMMZobj_extractGameplayKeep(uint8_t* rdram, recomp_context* ctx);
+extern "C" void PMMZobj_extractChildLink(uint8_t* rdram, recomp_context* ctx);
+extern "C" void PMMZobj_extractAdultLink(uint8_t* rdram, recomp_context* ctx);
+extern "C" void PMMZobj_extractMirrorShieldRay(uint8_t* rdram, recomp_context* ctx);
+extern "C" void recomp_android_compat_pmm_begin_save(uint8_t* rdram, recomp_context* ctx);
+extern "C" void recomp_android_compat_pmm_write_selection(uint8_t* rdram, recomp_context* ctx);
+extern "C" void recomp_android_compat_pmm_load_selection(uint8_t* rdram, recomp_context* ctx);
+extern "C" void recomp_android_compat_pmm_get_config_u32(uint8_t* rdram, recomp_context* ctx);
+extern "C" void recomp_android_compat_pmm_get_config_string(uint8_t* rdram, recomp_context* ctx);
+extern "C" void recomp_android_compat_pmm_free_config_string(uint8_t* rdram, recomp_context* ctx);
+extern "C" void recomp_android_compat_cheats_get_config_u32(uint8_t* rdram, recomp_context* ctx);
+extern "C" void recomp_android_compat_bomb_arrows_get_config_u32(uint8_t* rdram, recomp_context* ctx);
+extern "C" void recomp_android_compat_mco_enabled(uint8_t* rdram, recomp_context* ctx);
+extern "C" void recomp_android_compat_mco_get_config_u32(uint8_t* rdram, recomp_context* ctx);
 gpr get_entrypoint_address();
 
 // array of supported GameEntry objects
@@ -951,8 +997,8 @@ int main(int argc, char** argv) {
 #if !defined(__ANDROID__) && !defined(__APPLE__)
     recomp::mods::register_embedded_mod("mm_recomp_save_editor", { (const uint8_t*)(mm_recomp_save_editor), std::size(mm_recomp_save_editor)});
 #elif defined(__ANDROID__)
-    if (android_safe_mode_enabled()) {
-        ZELDA_ANDROID_LOG("safe mode active; optional embedded mods skipped");
+    if (android_skip_code_mods_enabled()) {
+        ZELDA_ANDROID_LOG("code mods disabled; optional embedded mods skipped");
     }
 #endif
     ZELDA_ANDROID_STAGE("registered embedded mods");
@@ -977,6 +1023,9 @@ int main(int argc, char** argv) {
     REGISTER_FUNC(recomp_get_inverted_axes);
     REGISTER_FUNC(recomp_get_analog_inverted_axes);
     REGISTER_FUNC(recomp_get_dpad_items_enabled);
+    REGISTER_FUNC(recomp_get_fd_anywhere_enabled);
+    REGISTER_FUNC(recomp_get_fast_mask_enabled);
+    REGISTER_FUNC(recomp_get_owls_never_quit_enabled);
     REGISTER_FUNC(recomp_get_clock_style);
     REGISTER_FUNC(recomp_get_clock_texture_pack_loaded);
     REGISTER_FUNC(recomp_should_use_3ds_clock_overlay);
@@ -984,9 +1033,50 @@ int main(int argc, char** argv) {
     REGISTER_FUNC(recomp_set_pause_save_prompt_overlay_state);
     REGISTER_FUNC(recomp_android_should_disable_rumble);
     REGISTER_FUNC(recomp_android_should_use_sync_boot_dma);
+    REGISTER_FUNC(recomp_android_is_n64_mode);
     REGISTER_FUNC(recomp_android_reset_effect_ss_table);
     REGISTER_FUNC(recomp_android_get_entrance_scene_spawn);
     REGISTER_FUNC(recomp_android_load_yaz0);
+#if defined(__ANDROID__)
+    if (android_compatibility_build_enabled()) {
+        REGISTER_FUNC(PMMZobj_setPMMDir);
+        REGISTER_FUNC(PMMZobj_scanForDiskEntries);
+        REGISTER_FUNC(PMMZobj_getNumDiskEntries);
+        REGISTER_FUNC(PMMZobj_entryInternalNameLength);
+        REGISTER_FUNC(PMMZobj_entryDisplayNameLength);
+        REGISTER_FUNC(PMMZobj_entryAuthorNameLength);
+        REGISTER_FUNC(PMMZobj_writeInternalNameToBuffer);
+        REGISTER_FUNC(PMMZobj_writeDisplayNameToBuffer);
+        REGISTER_FUNC(PMMZobj_writeAuthorNameToBuffer);
+        REGISTER_FUNC(PMMZobj_getEntryFileSize);
+        REGISTER_FUNC(PMMZobj_getEntryFileData);
+        REGISTER_FUNC(PMMZobj_createDirectory);
+        REGISTER_FUNC(PMMZobj_isDirectoryExist);
+        REGISTER_FUNC(PMMZobj_readEntryU8);
+        REGISTER_FUNC(PMMZobj_readEntryU16);
+        REGISTER_FUNC(PMMZobj_readEntryU32);
+        REGISTER_FUNC(PMMZobj_isModelType);
+        REGISTER_FUNC(PMMZobj_clearDiskEntries);
+        REGISTER_FUNC(PMMZobj_tryLoadOOTROM);
+        REGISTER_FUNC(PMMZobj_unloadOOTROM);
+        REGISTER_FUNC(PMMZobj_isOOTRomLoaded);
+        REGISTER_FUNC(PMMZobj_extractGameplayKeep);
+        REGISTER_FUNC(PMMZobj_extractChildLink);
+        REGISTER_FUNC(PMMZobj_extractAdultLink);
+        REGISTER_FUNC(PMMZobj_extractMirrorShieldRay);
+        REGISTER_FUNC(recomp_android_compat_pmm_apply_log);
+        REGISTER_FUNC(recomp_android_compat_pmm_begin_save);
+        REGISTER_FUNC(recomp_android_compat_pmm_write_selection);
+        REGISTER_FUNC(recomp_android_compat_pmm_load_selection);
+        REGISTER_FUNC(recomp_android_compat_pmm_get_config_u32);
+        REGISTER_FUNC(recomp_android_compat_pmm_get_config_string);
+        REGISTER_FUNC(recomp_android_compat_pmm_free_config_string);
+        REGISTER_FUNC(recomp_android_compat_cheats_get_config_u32);
+        REGISTER_FUNC(recomp_android_compat_bomb_arrows_get_config_u32);
+        REGISTER_FUNC(recomp_android_compat_mco_enabled);
+        REGISTER_FUNC(recomp_android_compat_mco_get_config_u32);
+    }
+#endif
     recompui::register_ui_exports();
     recomputil::register_data_api_exports();
     ZELDA_ANDROID_STAGE("registered exports");

@@ -23,6 +23,11 @@ on:
         description: Optional release notes
         required: false
         type: string
+      compatibility_build:
+        description: Build the Google/Samsung compatibility APK
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -180,6 +185,11 @@ jobs:
         run: tools/ci/setup_android_deps.sh
 
       - name: Prepare generated source helpers
+        env:
+          ZELDA_ANDROID_BUILTIN_PMM: ${{ inputs.compatibility_build && '1' || '0' }}
+          ZELDA_ANDROID_BUILTIN_CHEATS: ${{ inputs.compatibility_build && '1' || '0' }}
+          ZELDA_ANDROID_BUILTIN_BOMB_ARROWS: ${{ inputs.compatibility_build && '1' || '0' }}
+          ZELDA_ANDROID_BUILTIN_MCO: ${{ inputs.compatibility_build && '1' || '0' }}
         run: tools/ci/prepare_android_generated_sources.sh
 
       - name: Build host file_to_c helper
@@ -218,7 +228,7 @@ jobs:
           if [[ '${{ inputs.build_type }}' == 'release' ]]; then
             task=':app:assembleRelease'
           fi
-          gradle --no-daemon -p android "$task" -PzeldaProbe=false
+          gradle --no-daemon -p android "$task" -PzeldaProbe=false -PzeldaCompatibilityBuild=${{ inputs.compatibility_build }}
 
       - name: Locate APK
         id: apk

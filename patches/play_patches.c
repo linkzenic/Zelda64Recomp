@@ -39,6 +39,23 @@ RECOMP_DECLARE_EVENT(recomp_on_play_update(PlayState* play));
 RECOMP_DECLARE_EVENT(recomp_after_play_update(PlayState* play));
 
 static void* AndroidDiag_ToRdramAlias(void* ptr);
+static void compat_pmm_play_update(PlayState* play);
+#if defined(ZELDA_ANDROID_BUILTIN_PMM)
+void handleUIRequests_on_GameState_Update(GameState* state);
+void updatePlayerProxyManager_on_UpdateMain(void);
+void updateAdultProperties_on_Play_UpdateMain(PlayState* play);
+void processPlayerProxyRefreshRequests_on_Play_UpdateMain(void);
+void processFormProxyRefreshRequests_on_Play_UpdateMain(void);
+void setAdultBootData_on_func_80123140(PlayState* play, Player* player);
+void setAdultBootData_on_return_func_80123140(void);
+bool PlayerModelManager_shouldUseAdultFixes(Player* player);
+void adjustAdultLeg_on_Player_AdjustSingleLeg(Player* player);
+void adjustAdultLeg_on_return_Player_AdjustSingleLeg(void);
+#endif
+#if defined(ZELDA_ANDROID_BUILTIN_CHEATS)
+void CompatCheats_OnPlayInit(PlayState* play);
+void CompatCheats_OnPlayMain(PlayState* play);
+#endif
 
 void controls_play_update(PlayState* play) {
     gSaveContext.options.zTargetSetting = recomp_get_targeting_mode();
@@ -113,10 +130,18 @@ RECOMP_PATCH void Play_Main(GameState* thisx) {
     // @recomp_event recomp_on_play_main(PlayState* play): Allow mods to execute code every frame.
     recomp_on_play_main(this);
 
+#if defined(ZELDA_ANDROID_BUILTIN_PMM)
+    handleUIRequests_on_GameState_Update(&this->state);
+#endif
+#if defined(ZELDA_ANDROID_BUILTIN_CHEATS)
+    CompatCheats_OnPlayMain(this);
+#endif
+
     // @recomp
     debug_play_update(this);
     controls_play_update(this);
     save_editor_builtin_play_update(this);
+    compat_pmm_play_update(this);
     analog_cam_pre_play_update(this);
     matrix_play_update(this);
     
@@ -215,6 +240,19 @@ extern TransitionInit TransitionFade_InitVars;
 extern TransitionOverlay gTransitionOverlayTable[];
 s32 Scene_ExecuteCommands(PlayState* play, SceneCmd* sceneSegment);
 void func_80123140(PlayState* play, Player* player);
+void Player_AdjustSingleLeg(PlayState* play, Player* player, SkelAnime* skelAnime, Vec3f* pos, Vec3s* rot,
+                            s32 thighLimbIndex, s32 shinLimbIndex, s32 footLimbIndex);
+
+RECOMP_PATCH void func_80125500(PlayState* play, Player* player, s32 limbIndex, Vec3f* pos, Vec3s* rot) {
+    if (limbIndex == PLAYER_LIMB_LEFT_THIGH) {
+        Player_AdjustSingleLeg(play, player, &player->skelAnime, pos, rot, PLAYER_LIMB_LEFT_THIGH,
+                               PLAYER_LIMB_LEFT_SHIN, PLAYER_LIMB_LEFT_FOOT);
+    } else if (limbIndex == PLAYER_LIMB_RIGHT_THIGH) {
+        Player_AdjustSingleLeg(play, player, &player->skelAnime, pos, rot, PLAYER_LIMB_RIGHT_THIGH,
+                               PLAYER_LIMB_RIGHT_SHIN, PLAYER_LIMB_RIGHT_FOOT);
+    }
+}
+
 void Actor_SpawnTransitionActors(PlayState* play, ActorContext* actorCtx);
 void func_800FEAB0(void);
 u32 Environment_GetStormState(PlayState* play);
@@ -457,6 +495,68 @@ static void AndroidDiag_LoadRomToRam(void* dst, uintptr_t vromStart, size_t size
     }
 }
 
+static s32 CompatPmm_IsHumanLinkObject(s16 id) {
+    return (id == OBJECT_LINK_CHILD) || (id == OBJECT_LINK_BOY);
+}
+
+static void CompatPmm_TryLoadSelectedObject(s16 id, void* dst, size_t maxSize, const char* label) {
+    s32 status;
+
+    if (!CompatPmm_IsHumanLinkObject(id) || dst == NULL || maxSize == 0) {
+        return;
+    }
+
+    status = recomp_android_compat_pmm_load_selected_model(dst, (u32)maxSize);
+    if (status > 0) {
+        recomp_printf("[CompatPMM] loaded %s model bytes=%d max=%08X\n", label, status, (u32)maxSize);
+    } else if (status != -1 && status != -2) {
+        recomp_printf("[CompatPMM] skipped %s selected model status=%d max=%08X\n", label, status, (u32)maxSize);
+    }
+}
+
+static void CompatPmm_ReloadLoadedHumanObjects(PlayState* play) {
+    s32 i;
+    RomFile objectFile;
+    ObjectContext* objectCtx = &play->objectCtx;
+
+    for (i = 0; i < objectCtx->numEntries; i++) {
+        s16 id = objectCtx->slots[i].id;
+        if (id < 0) {
+            id = -id;
+        }
+
+        if (!CompatPmm_IsHumanLinkObject(id)) {
+            continue;
+        }
+
+        AndroidDiag_GetObjectFile(id, &objectFile);
+        CompatPmm_TryLoadSelectedObject(id, objectCtx->slots[i].segment, objectFile.vromEnd - objectFile.vromStart,
+                                        "live");
+    }
+}
+
+static void compat_pmm_play_update(PlayState* play) {
+#if defined(ZELDA_ANDROID_BUILTIN_PMM)
+    updatePlayerProxyManager_on_UpdateMain();
+    updateAdultProperties_on_Play_UpdateMain(play);
+    processPlayerProxyRefreshRequests_on_Play_UpdateMain();
+    processFormProxyRefreshRequests_on_Play_UpdateMain();
+#else
+    Input* input = CONTROLLER1(&play->state);
+
+    if ((recomp_android_compat_pmm_model_count() <= 0) ||
+        !CHECK_BTN_ALL(input->cur.button, BTN_L) ||
+        !CHECK_BTN_ALL(input->press.button, BTN_A)) {
+        return;
+    }
+
+    if (recomp_android_compat_pmm_cycle_model(1) >= 0) {
+        input->press.button &= (u16)~BTN_A;
+        CompatPmm_ReloadLoadedHumanObjects(play);
+    }
+#endif
+}
+
 RECOMP_PATCH void CmpDma_LoadFileImpl(uintptr_t segmentRom, s32 id, void* dst, size_t size) {
     uintptr_t romStart;
     size_t compressedSize;
@@ -694,17 +794,29 @@ RECOMP_PATCH void Transition_Init(TransitionContext* transitionCtx) {
     TransitionOverlay* overlayEntry;
     ptrdiff_t relocOffset;
     TransitionInit* initInfo[1];
-    if (recomp_android_should_use_sync_boot_dma()) {
+    s32 samsungDiag = recomp_android_should_use_sync_boot_dma();
+    if (samsungDiag) {
         recomp_measure_latency(98, 0xA1, (u32)transitionCtx, transitionCtx->transitionType, transitionCtx->fbdemoType);
     }
 
     overlayEntry = &gTransitionOverlayTable[transitionCtx->fbdemoType];
-    TransitionOverlay_Load(overlayEntry);
-
-    relocOffset = (uintptr_t)Lib_PhysicalToVirtual(overlayEntry->loadInfo.addr) - (uintptr_t)overlayEntry->vramStart;
     initInfo[0] = NULL;
-    initInfo[0] = (overlayEntry->initInfo != NULL) ? (TransitionInit*)((uintptr_t)overlayEntry->initInfo + relocOffset)
-                                                   : initInfo[0];
+
+    if (samsungDiag && (overlayEntry->vromStart == 0)) {
+        initInfo[0] = overlayEntry->initInfo;
+        recomp_measure_latency(98, 0xA3, (u32)transitionCtx, transitionCtx->transitionType, transitionCtx->fbdemoType);
+    } else {
+        TransitionOverlay_Load(overlayEntry);
+
+        relocOffset = (uintptr_t)Lib_PhysicalToVirtual(overlayEntry->loadInfo.addr) - (uintptr_t)overlayEntry->vramStart;
+        initInfo[0] = (overlayEntry->initInfo != NULL) ? (TransitionInit*)((uintptr_t)overlayEntry->initInfo + relocOffset)
+                                                       : initInfo[0];
+    }
+
+    if (initInfo[0] == NULL) {
+        recomp_measure_latency(98, 0xA4, (u32)transitionCtx, transitionCtx->transitionType, transitionCtx->fbdemoType);
+        return;
+    }
 
     transitionCtx->init = initInfo[0]->init;
     transitionCtx->destroy = initInfo[0]->destroy;
@@ -844,6 +956,9 @@ RECOMP_PATCH void func_80123140(PlayState* play, Player* player) {
     s16* bootRegs;
     PlayerBoots currentBoots;
     f32 scale;
+#if defined(ZELDA_ANDROID_BUILTIN_PMM)
+    bool useAdultPmmScale = false;
+#endif
 
     if (recomp_android_should_use_sync_boot_dma()) {
         player = AndroidDiag_ToRdramAlias(player);
@@ -855,7 +970,16 @@ RECOMP_PATCH void func_80123140(PlayState* play, Player* player) {
                                (u32)(s32)player->transformation);
     }
 
-    if ((player->actor.id == ACTOR_PLAYER) && (player->transformation == PLAYER_FORM_FIERCE_DEITY)) {
+#if defined(ZELDA_ANDROID_BUILTIN_PMM)
+    useAdultPmmScale = false;
+#endif
+
+    if ((player->actor.id == ACTOR_PLAYER) &&
+        ((player->transformation == PLAYER_FORM_FIERCE_DEITY)
+#if defined(ZELDA_ANDROID_BUILTIN_PMM)
+         || useAdultPmmScale
+#endif
+        )) {
         REG(27) = 1200;
     } else {
         REG(27) = 2000;
@@ -910,13 +1034,19 @@ RECOMP_PATCH void func_80123140(PlayState* play, Player* player) {
         R_RUN_SPEED_LIMIT = 500;
     }
 
-    if ((player->actor.id == ACTOR_PLAYER) && (player->transformation == PLAYER_FORM_FIERCE_DEITY)) {
+    if ((player->actor.id == ACTOR_PLAYER) &&
+        ((player->transformation == PLAYER_FORM_FIERCE_DEITY)
+#if defined(ZELDA_ANDROID_BUILTIN_PMM)
+         || useAdultPmmScale
+#endif
+        )) {
         scale = 0.015f;
     } else {
         scale = 0.01f;
     }
 
     Actor_SetScale(&player->actor, scale);
+
 }
 
 RECOMP_PATCH void SSNodeList_Alloc(PlayState* play, SSNodeList* this, s32 tblMax, s32 numPolys) {
@@ -1285,6 +1415,8 @@ RECOMP_PATCH s32 Object_SpawnPersistent(ObjectContext* objectCtx, s16 id) {
     if (size != 0) {
         AndroidDiag_LoadRomToRam(objectCtx->slots[objectCtx->numEntries].segment, objectFile.vromStart, size,
                                  "object persistent");
+        CompatPmm_TryLoadSelectedObject(id, objectCtx->slots[objectCtx->numEntries].segment, size,
+                                        "persistent");
     }
 
     if (objectCtx->numEntries < ARRAY_COUNT(objectCtx->slots) - 1) {
@@ -1485,6 +1617,7 @@ RECOMP_PATCH void Object_UpdateEntries(ObjectContext* objectCtx) {
                     entry->id = 0;
                 } else if (recomp_android_should_use_sync_boot_dma()) {
                     AndroidDiag_LoadRomToRam(entry->segment, objectFile.vromStart, size, "object async-sync");
+                    CompatPmm_TryLoadSelectedObject(id, entry->segment, size, "async-sync");
                     entry->id = id;
                 } else {
                     osCreateMesgQueue(&entry->loadQueue, &entry->loadMsg, 1);
@@ -1492,6 +1625,9 @@ RECOMP_PATCH void Object_UpdateEntries(ObjectContext* objectCtx) {
                                            &entry->loadQueue, NULL);
                 }
             } else if (!osRecvMesg(&entry->loadQueue, NULL, OS_MESG_NOBLOCK)) {
+                AndroidDiag_GetObjectFile(id, &objectFile);
+                CompatPmm_TryLoadSelectedObject(id, entry->segment, objectFile.vromEnd - objectFile.vromStart,
+                                                "async");
                 entry->id = id;
             }
         }
@@ -1516,6 +1652,7 @@ RECOMP_PATCH void Object_LoadAll(ObjectContext* objectCtx) {
         }
 
         AndroidDiag_LoadRomToRam(objectCtx->slots[i].segment, objectFile.vromStart, vromSize, "object all");
+        CompatPmm_TryLoadSelectedObject(id, objectCtx->slots[i].segment, vromSize, "all");
     }
 }
 
@@ -2047,6 +2184,9 @@ RECOMP_PATCH void Play_Init(GameState* thisx) {
 
     // @recomp_event recomp_on_play_init(PlayState* this): A new PlayState is being initialized.
     recomp_on_play_init(this);
+#if defined(ZELDA_ANDROID_BUILTIN_CHEATS)
+    CompatCheats_OnPlayInit(this);
+#endif
 
     if (samsungDiag) {
         recomp_measure_latency(81, (u32)this, (u32)gSaveContext.respawnFlag, (u32)gSaveContext.nextCutsceneIndex,

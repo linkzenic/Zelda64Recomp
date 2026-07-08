@@ -15,6 +15,10 @@ extern u16 sNumDmaEntries;
 
 RECOMP_DECLARE_EVENT(recomp_on_init());
 
+#if defined(ZELDA_ANDROID_BUILTIN_PMM)
+void zelda_builtin_pmm_after_main_init(void);
+#endif
+
 // @recomp Patched to load the code segment in the recomp runtime.
 RECOMP_PATCH void Main_Init(void) {
     DmaRequest dmaReq;
@@ -90,6 +94,11 @@ RECOMP_PATCH void Main_Init(void) {
     recomp_printf("[MainInitDiag] clock float patch begin\n");
     *(f32*)0x801DDBBC = ((f32)M_PI) / 180.0f;
     recomp_printf("[MainInitDiag] clock float patch end\n");
+#if defined(ZELDA_ANDROID_BUILTIN_PMM)
+    if (!recomp_android_is_n64_mode()) {
+        zelda_builtin_pmm_after_main_init();
+    }
+#endif
     recomp_printf("[MainInitDiag] end\n");
 }
 
@@ -132,6 +141,38 @@ static void AndroidDiag_LoadOverlayToRam(uintptr_t vromStart, void* dst, size_t 
     }
 }
 
+static void AndroidDiag_LogDmaFault(const char* reason, uintptr_t vrom, void* ram, size_t size, s32 index,
+                                    DmaEntry* entry) {
+    if (!recomp_android_should_use_sync_boot_dma()) {
+        return;
+    }
+
+    if (entry != NULL) {
+        recomp_printf("[AndroidLoadDiag] DmaMgr fault %s vrom=%08llX ram=%08llX size=%08X index=%d "
+                      "entry_vrom=%08llX-%08llX entry_rom=%08llX-%08llX\n",
+                      reason, (u64)vrom, (u64)(uintptr_t)ram, (u32)size, index,
+                      (u64)entry->vromStart, (u64)entry->vromEnd, (u64)entry->romStart, (u64)entry->romEnd);
+    } else {
+        recomp_printf("[AndroidLoadDiag] DmaMgr fault %s vrom=%08llX ram=%08llX size=%08X index=%d entry=NULL "
+                      "numEntries=%u\n",
+                      reason, (u64)vrom, (u64)(uintptr_t)ram, (u32)size, index, (u32)sNumDmaEntries);
+    }
+}
+
+static s32 AndroidDiag_ShouldIgnoreImplausibleBootDma(uintptr_t vrom, size_t size) {
+    if (!recomp_android_should_use_sync_boot_dma()) {
+        return false;
+    }
+
+    // Samsung's sync boot path can receive one stale/corrupt DMA message during
+    // startup. Real MM DMA requests are table-backed and much smaller than this.
+    if ((size > 0x10000000) || (vrom >= 0x10000000)) {
+        return true;
+    }
+
+    return false;
+}
+
 // Samsung devices can reach the game entrypoint now, but still fault inside the
 // vanilla DMAMGR thread while Yaz0 data is being decompressed. Keep the normal
 // path everywhere else, and route only Samsung compressed DMA through the
@@ -157,7 +198,15 @@ RECOMP_PATCH void DmaMgr_ProcessMsg(DmaRequest* req) {
         dmaEntry = &dmadata[index];
         if (dmaEntry->romEnd == 0) {
             if (dmaEntry->vromEnd < (vrom + size)) {
+                AndroidDiag_LogDmaFault("raw-bounds", vrom, ram, size, index, dmaEntry);
                 Fault_AddHungupAndCrash("../z_std_dma.c", 499);
+            }
+            if (syncBootDma) {
+                recomp_measure_latency(97, 0x92, (u32)((dmaEntry->romStart + vrom) - dmaEntry->vromStart),
+                                       (u32)(uintptr_t)ram, (u32)size);
+                AndroidDiag_LoadOverlayToRam(vrom, ram, size);
+                recomp_measure_latency(97, 0x93, (u32)vrom, (u32)(uintptr_t)ram, (u32)size);
+                return;
             }
             DmaMgr_DmaRomToRam((dmaEntry->romStart + vrom) - dmaEntry->vromStart, (u8*)ram, size);
             return;
@@ -167,10 +216,12 @@ RECOMP_PATCH void DmaMgr_ProcessMsg(DmaRequest* req) {
         romStart = dmaEntry->romStart;
 
         if (vrom != dmaEntry->vromStart) {
+            AndroidDiag_LogDmaFault("compressed-vrom-mismatch", vrom, ram, size, index, dmaEntry);
             Fault_AddHungupAndCrash("../z_std_dma.c", 518);
         }
 
         if (size != (dmaEntry->vromEnd - dmaEntry->vromStart)) {
+            AndroidDiag_LogDmaFault("compressed-size-mismatch", vrom, ram, size, index, dmaEntry);
             Fault_AddHungupAndCrash("../z_std_dma.c", 525);
         }
 
@@ -182,12 +233,20 @@ RECOMP_PATCH void DmaMgr_ProcessMsg(DmaRequest* req) {
                 recomp_printf("[AndroidLoadDiag] DmaMgr_ProcessMsg host Yaz0 failed status=%d rom=%08llX "
                               "compressed=%08X expected=%08X\n",
                               yaz0Status, (u64)romStart, (u32)romSize, (u32)size);
+                AndroidDiag_LogDmaFault("host-yaz0-failed", vrom, ram, size, index, dmaEntry);
                 Fault_AddHungupAndCrash("../z_std_dma.c", 545);
             }
         } else {
             Yaz0_Decompress(romStart, ram, romSize);
         }
     } else {
+        AndroidDiag_LogDmaFault("index-not-found", vrom, ram, size, index, NULL);
+        if (AndroidDiag_ShouldIgnoreImplausibleBootDma(vrom, size)) {
+            recomp_printf("[AndroidLoadDiag] ignored implausible Samsung DMA request vrom=%08llX ram=%08llX "
+                          "size=%08X\n",
+                          (u64)vrom, (u64)(uintptr_t)ram, (u32)size);
+            return;
+        }
         Fault_AddHungupAndCrash("../z_std_dma.c", 558);
     }
 }

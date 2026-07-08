@@ -15,7 +15,9 @@ class ModDetailsPanel : public Element {
 public:
     ModDetailsPanel(Element *parent);
     virtual ~ModDetailsPanel();
-    void set_mod_details(const recomp::mods::ModDetails& details, const std::string &thumbnail, bool toggle_checked, bool toggle_enabled, bool toggle_label_visible, bool configure_enabled);
+    void set_mod_details(const recomp::mods::ModDetails& details, const std::string &thumbnail, bool toggle_checked,
+        bool toggle_enabled, bool toggle_label_visible, bool configure_enabled,
+        const std::string& toggle_label_text = "A currently enabled mod requires this mod");
     void set_mod_toggled_callback(std::function<void(bool)> callback);
     void set_mod_configure_pressed_callback(std::function<void()> callback);
     void setup_mod_navigation(Element* nav_target);

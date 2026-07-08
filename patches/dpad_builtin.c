@@ -326,12 +326,12 @@ RECOMP_PATCH void Player_Action_86(Player *this, PlayState *play) {
     }
     else if ((this->av1.actionVar1++ > ((this->transformation == PLAYER_FORM_HUMAN) ? 0x53 : 0x37)) ||
         ((this->av1.actionVar1 >= 5) &&
-            (sp48 =
-                ((this->transformation != PLAYER_FORM_HUMAN) || CHECK_WEEKEVENTREG(D_8085D908[GET_PLAYER_FORM])) &&
-                // @mod Patched to also check for d-pad buttons for skipping the transformation cutscene.
-                CHECK_BTN_ANY(play->state.input[0].press.button,
-                    BTN_CRIGHT | BTN_CLEFT | BTN_CDOWN | BTN_CUP | BTN_B | BTN_A |
-                        (dpad_items_enabled() ? (BTN_DRIGHT | BTN_DLEFT | BTN_DDOWN | BTN_DUP) : 0))))) {
+            (sp48 = recomp_get_fast_mask_enabled() ||
+                ((((this->transformation != PLAYER_FORM_HUMAN) || CHECK_WEEKEVENTREG(D_8085D908[GET_PLAYER_FORM])) &&
+                  // @mod Patched to also check for d-pad buttons for skipping the transformation cutscene.
+                  CHECK_BTN_ANY(play->state.input[0].press.button,
+                      BTN_CRIGHT | BTN_CLEFT | BTN_CDOWN | BTN_CUP | BTN_B | BTN_A |
+                          (dpad_items_enabled() ? (BTN_DRIGHT | BTN_DLEFT | BTN_DDOWN | BTN_DUP) : 0))))))) {
         R_PLAY_FILL_SCREEN_ON = 45;
         R_PLAY_FILL_SCREEN_R = 220;
         R_PLAY_FILL_SCREEN_G = 220;
@@ -1511,7 +1511,8 @@ RECOMP_HOOK("Interface_UpdateButtonsPart2") void on_update_buttons_part2(PlaySta
                     }
                 } else if (GET_CUR_FORM_BTN_ITEM_EX(i) == ITEM_MASK_FIERCE_DEITY) {
                     // Fierce Deity's Mask is equipped
-                    if ((play->sceneId != SCENE_MITURIN_BS) && (play->sceneId != SCENE_HAKUGIN_BS) &&
+                    if (!recomp_get_fd_anywhere_enabled() &&
+                        (play->sceneId != SCENE_MITURIN_BS) && (play->sceneId != SCENE_HAKUGIN_BS) &&
                         (play->sceneId != SCENE_SEA_BS) && (play->sceneId != SCENE_INISIE_BS) &&
                         (play->sceneId != SCENE_LAST_BS)) {
                         if (extra_item_slot_statuses[i] != BTN_DISABLED) {

@@ -1,4 +1,5 @@
 #include "patches.h"
+#include "misc_funcs.h"
 #include "transform_ids.h"
 #include "overlays/actors/ovl_Arms_Hook/z_arms_hook.h"
 
@@ -80,10 +81,22 @@ RECOMP_PATCH void Player_DrawHookshotReticle(PlayState* play, Player* player, f3
     Vec3f sp7C;
     Vec3f sp70;
     Vec3f pos;
+    f32 reticleDistance = hookshotDistance;
+
+#if defined(ZELDA_ANDROID_BUILTIN_CHEATS)
+    u32 hookshotMultiplier = recomp_android_compat_cheats_get_config_u32("hookshot_length_multiplier");
+    if (hookshotMultiplier < 1) {
+        hookshotMultiplier = 1;
+    }
+    else if (hookshotMultiplier > 5) {
+        hookshotMultiplier = 5;
+    }
+    reticleDistance *= hookshotMultiplier;
+#endif
 
     D_801C094C.z = 0.0f;
     Matrix_MultVec3f(&D_801C094C, &sp7C);
-    D_801C094C.z = hookshotDistance;
+    D_801C094C.z = reticleDistance;
     Matrix_MultVec3f(&D_801C094C, &sp70);
 
     if (BgCheck_AnyLineTest3(&play->colCtx, &sp7C, &sp70, &pos, &poly, true, true, true, true, &bgId)) {
@@ -123,6 +136,20 @@ RECOMP_PATCH void Player_DrawHookshotReticle(PlayState* play, Player* player, f3
 
 
 extern Gfx object_link_child_DL_017818[];
+
+#if defined(ZELDA_ANDROID_BUILTIN_PMM)
+void readTunicColor_on_Player_Draw(Player* player, PlayState* play);
+void hookGfx_on_Player_Draw(Player* player, PlayState* play);
+void updateAssets_on_Player_Draw(Player* player);
+void fixCompatAdultHeight_on_Player_Draw(Player* player, PlayState* play);
+void fixAdultBremen_on_Player_Draw(Player* player, PlayState* play);
+void applyAdultBowProperties_on_Player_Draw(Player* player, PlayState* play);
+void PlayerModelManager_applyPendingDiskModels(void);
+void hookGfx_on_return_Player_Draw(void);
+void fixCompatAdultHeight_on_return_Player_Draw(void);
+void fixAdultBremen_on_return_Player_Draw(void);
+void applyAdultBowProperties_on_return_Player_Draw(void);
+#endif
 
 Gfx bowstring_start_hook_dl[] = {
     // One command worth of space to copy the command that was overwritten.
@@ -178,9 +205,26 @@ RECOMP_PATCH void Player_DrawGameplay(PlayState* play, Player* this, s32 lod, Gf
         }
     }
 
+#if defined(ZELDA_ANDROID_BUILTIN_PMM)
+    PlayerModelManager_applyPendingDiskModels();
+    hookGfx_on_Player_Draw(this, play);
+    readTunicColor_on_Player_Draw(this, play);
+    updateAssets_on_Player_Draw(this);
+    fixCompatAdultHeight_on_Player_Draw(this, play);
+    fixAdultBremen_on_Player_Draw(this, play);
+    applyAdultBowProperties_on_Player_Draw(this, play);
+#endif
+
     Player_DrawImpl(play, this->skelAnime.skeleton, this->skelAnime.jointTable, this->skelAnime.dListCount, lod,
                     this->transformation, 0, this->actor.shape.face, overrideLimbDraw, Player_PostLimbDrawGameplay,
                     &this->actor);
+
+#if defined(ZELDA_ANDROID_BUILTIN_PMM)
+    applyAdultBowProperties_on_return_Player_Draw();
+    fixAdultBremen_on_return_Player_Draw();
+    fixCompatAdultHeight_on_return_Player_Draw();
+    hookGfx_on_return_Player_Draw();
+#endif
 
     CLOSE_DISPS(play->state.gfxCtx);
 }

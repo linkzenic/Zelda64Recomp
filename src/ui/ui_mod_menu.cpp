@@ -3,10 +3,15 @@
 #include "recomp_ui.h"
 #include "zelda_support.h"
 #include "zelda_render.h"
+#include "zelda_config.h"
 
 #include "librecomp/mods.hpp"
 
+#include <algorithm>
+#include <cstdlib>
 #include <string>
+#include <unordered_set>
+#include <vector>
 
 #ifdef WIN32
 #include <shellapi.h>
@@ -22,11 +27,283 @@ static std::string generate_thumbnail_src_for_mod(const std::string &mod_id) {
     return "?/mods/" + mod_id + "/thumb";
 }
 
+static bool is_android_compatibility_build() {
+#if defined(__ANDROID__)
+    const char* compatibility_build = std::getenv("APP_ANDROID_COMPATIBILITY_BUILD");
+    return compatibility_build != nullptr && compatibility_build[0] == '1';
+#else
+    return false;
+#endif
+}
+
+struct BuiltinCompatibilityMod {
+    const char* mod_id;
+    const char* display_name;
+    const char* description;
+    const char* short_description;
+    const char* version;
+    std::vector<std::string> authors;
+    bool toggleable;
+};
+
+static const std::vector<BuiltinCompatibilityMod>& get_builtin_compatibility_mods() {
+    static const std::vector<BuiltinCompatibilityMod> mods{
+        {
+            "ProxyMM_KV",
+            "KV",
+            "A simple KV Store for N64Recomp projects\n",
+            "A simple KV Store for N64Recomp projects",
+            "0.0.5",
+            { "ProxySaw", "LT_Schmiddy" },
+            false,
+        },
+        {
+            "yazmt_mm_corelib",
+            "YAZMT CoreLib",
+            "Shared library for YAZMT mods.",
+            "Shared library for YAZMT mods.",
+            "0.1.1",
+            { "Neirn" },
+            false,
+        },
+        {
+            "yazmt_mm_global_objects",
+            "Global Objects",
+            "This is an API mod for Majora's Mask: Recompiled for mods that need static global pointers to vanilla objects.",
+            "Global object API for YAZMT mods.",
+            "0.1.1",
+            { "Neirn" },
+            false,
+        },
+        {
+            "mm_recomp_interface_helper",
+            "Interface Helper",
+            "A library mod that exposes more data in Interface functions.\n\nShould be placed towards the bottom of your load order.\n\nDoes not perform any conflict checks. You have to ensure that any dependents of this mod don't change the same variables, or that variables are changed in a priority that works for you.",
+            "A library mod that exposes more data in Interface functions.",
+            "1.1.0",
+            { "tomtee" },
+            false,
+        },
+        {
+            "MM_EZ_Text_Replacer_API",
+            "EZ Text Replacer API",
+            "A library mod for replacing in-game text.",
+            "Text replacement API.",
+            "2.0.0",
+            { "LT_Schmiddy" },
+            false,
+        },
+        {
+            "mm_modern_controller_overhaul",
+            "Modern Controller Overhaul",
+            "Modernizes the in-game button layout and button glyphs for contemporary controllers.\n\nTexture replacement content is bundled for this compatibility Android build, while the runtime code is built directly into the app.",
+            "Modern controller HUD layout.",
+            "3.1.0",
+            { "tomtee" },
+            false,
+        },
+        {
+            "yazmt_mm_playermodelmanager",
+            "Player Model Manager",
+            "This is a mod for Majora's Mask: Recompiled that allows Link's model to be swapped out on the fly.\n\nTo open the model menu, use the button combo you have configured. By default, it is L + A.",
+            "Customize Link's model.",
+            "0.5.0",
+            { "Neirn" },
+            false,
+        },
+        {
+            "yazmt_mm_playermodelmanager_fsmodels",
+            "PlayerModelManager FS Addon",
+            "File system support for PlayerModelManager.\n\nAllows non-Fast64 player models (\".zobj\") built for ModLoader64 to be read from here:\n\n<recomp appdata folder>/mod_data/yazmt_z64_playermodelmanager/models/\n\nSome of these models rely on assets from Ocarina of Time, which may cause corrupted textures when they are loaded into Majora's Mask.\n\nTo resolve these issues, place a US or JP 1.0, 1.1, or 1.2 OoT ROM named oot.z64 or oot.v64 or oot.n64 into the yazmt_z64_playermodelmanager folder for this mod to extract the needed assets from.\n\nIf the extraction is successful, the corrupted textures will display correctly, and you will find child and adult Link from OoT as well as their equipment in PlayerModelManager.\n\n",
+            "File system support for PlayerModelManager.",
+            "0.3.3",
+            { "Neirn" },
+            false,
+        },
+        {
+            "ProxyMM_Cheats",
+            "Cheats",
+            "Features:\n- Infinite Magic, Health, Consumables, Rupees\n- Unrestricted Items\n- Blast Mask Cooldown\n- No Explosive Limit\n- Hookshot Everything\n- Hookshot Length Multiplier\n- Longer Deku Flower Glide",
+            "Various toggle-able Cheats",
+            "0.0.2",
+            { "ProxySaw" },
+            false,
+        },
+        {
+            "FdAnywhere",
+            "Fierce Deity Anywhere",
+            "Enables Fierce Deity Use Anywhere.\n",
+            "Enables Fierce Deity Use Anywhere.",
+            "1.0.4",
+            { "saphire2689" },
+            true,
+        },
+        {
+            "fast_mask",
+            "Fast Mask",
+            "Fast Mask speeds up transformation mask changes by skipping the long transformation and detransformation cutscenes.\nThe final form change still happens normally, with the flash and sound feedback preserved.",
+            "Faster transformation mask changes.",
+            "1.0.0",
+            { "Ghost" },
+            true,
+        },
+        {
+            "owls_never_quit",
+            "Owls Never Quit",
+            "And why should they?\n\nhttps://github.com/LittleCube-hax/MMRecompOwlsNeverQuit",
+            "schnigedy ding-dong",
+            "1.0.0",
+            { "LittleCube" },
+            true,
+        },
+        {
+            "mm_recomp_bomb_arrows",
+            "Bomb Arrows",
+            "Adds the ability to combine arrows with bombs like in other Zelda titles. Fasten a bomb to the tip of an arrow, causing it to detonate on impact or when the fuse expires.\n\nTo use bomb arrows, assign both the Hero's Bow and Bombs to the same control button. Each bomb arrow consumes one arrow and one bomb.",
+            "Combine arrows with bombs for explosive projectiles.",
+            "1.0.3",
+            { "PK Cheap" },
+            true,
+        },
+    };
+
+    return mods;
+}
+
+static bool is_builtin_compatibility_mod(const std::string& mod_id) {
+    if (!is_android_compatibility_build()) {
+        return false;
+    }
+
+    const auto& mods = get_builtin_compatibility_mods();
+    return std::any_of(mods.begin(), mods.end(), [&](const BuiltinCompatibilityMod& mod) {
+        return mod_id == mod.mod_id;
+    });
+}
+
+static const BuiltinCompatibilityMod* get_builtin_compatibility_mod(const std::string& mod_id) {
+    if (!is_android_compatibility_build()) {
+        return nullptr;
+    }
+
+    const auto& mods = get_builtin_compatibility_mods();
+    auto find_it = std::find_if(mods.begin(), mods.end(), [&](const BuiltinCompatibilityMod& mod) {
+        return mod_id == mod.mod_id;
+    });
+
+    return find_it != mods.end() ? &*find_it : nullptr;
+}
+
+static bool is_toggleable_builtin_compatibility_mod(const std::string& mod_id) {
+    const BuiltinCompatibilityMod* mod = get_builtin_compatibility_mod(mod_id);
+    return mod != nullptr && mod->toggleable;
+}
+
+static bool is_configurable_builtin_compatibility_mod(const std::string& mod_id) {
+    return mod_id == "yazmt_mm_playermodelmanager" ||
+           mod_id == "yazmt_mm_playermodelmanager_fsmodels" ||
+           mod_id == "ProxyMM_Cheats" ||
+           mod_id == "mm_modern_controller_overhaul" ||
+           mod_id == "mm_recomp_bomb_arrows";
+}
+
+static bool get_toggleable_builtin_compatibility_mod_enabled(const std::string& mod_id) {
+    if (mod_id == "FdAnywhere") {
+        return zelda64::get_compat_fd_anywhere_enabled();
+    }
+    if (mod_id == "fast_mask") {
+        return zelda64::get_compat_fast_mask_enabled();
+    }
+    if (mod_id == "owls_never_quit") {
+        return zelda64::get_compat_owls_never_quit_enabled();
+    }
+    if (mod_id == "mm_recomp_bomb_arrows") {
+        return zelda64::get_compat_bomb_arrows_enabled();
+    }
+    return false;
+}
+
+static void set_toggleable_builtin_compatibility_mod_enabled(const std::string& mod_id, bool enabled) {
+    if (mod_id == "FdAnywhere") {
+        zelda64::set_compat_fd_anywhere_enabled(enabled);
+    }
+    else if (mod_id == "fast_mask") {
+        zelda64::set_compat_fast_mask_enabled(enabled);
+    }
+    else if (mod_id == "owls_never_quit") {
+        zelda64::set_compat_owls_never_quit_enabled(enabled);
+    }
+    else if (mod_id == "mm_recomp_bomb_arrows") {
+        zelda64::set_compat_bomb_arrows_enabled(enabled);
+    }
+    else {
+        return;
+    }
+
+    zelda64::save_config();
+}
+
+static recomp::Version version_from_string_or_default(const char* version_string) {
+    recomp::Version version{};
+    if (!recomp::Version::from_string(version_string, version)) {
+        version = recomp::Version{};
+    }
+    return version;
+}
+
+static void append_builtin_compatibility_note(recomp::mods::ModDetails& details) {
+    constexpr std::string_view note = "\n\nBuilt into this Android build.";
+    if (details.description.find(note) == std::string::npos) {
+        details.description += std::string(note);
+    }
+}
+
+static void merge_builtin_compatibility_mods(std::vector<recomp::mods::ModDetails>& details) {
+    if (!is_android_compatibility_build()) {
+        return;
+    }
+
+    std::unordered_set<std::string> existing_ids;
+    for (recomp::mods::ModDetails& detail : details) {
+        existing_ids.emplace(detail.mod_id);
+        if (is_builtin_compatibility_mod(detail.mod_id)) {
+            detail.runtime_toggleable = is_toggleable_builtin_compatibility_mod(detail.mod_id);
+            detail.enabled_by_default = !is_toggleable_builtin_compatibility_mod(detail.mod_id);
+            append_builtin_compatibility_note(detail);
+        }
+    }
+
+    for (const BuiltinCompatibilityMod& compat_mod : get_builtin_compatibility_mods()) {
+        if (existing_ids.contains(compat_mod.mod_id)) {
+            continue;
+        }
+
+        recomp::mods::ModDetails detail{
+            .mod_id = compat_mod.mod_id,
+            .display_name = compat_mod.display_name,
+            .description = compat_mod.description,
+            .short_description = compat_mod.short_description,
+            .version = version_from_string_or_default(compat_mod.version),
+            .authors = compat_mod.authors,
+            .dependencies = {},
+            .runtime_toggleable = compat_mod.toggleable,
+            .enabled_by_default = !compat_mod.toggleable,
+        };
+        append_builtin_compatibility_note(detail);
+        details.emplace_back(std::move(detail));
+    }
+
+}
+
 static bool is_mod_enabled_or_auto(const std::string &mod_id) {
     return recomp::mods::is_mod_enabled(mod_id) || recomp::mods::is_mod_auto_enabled(mod_id);
 }
 
 static bool is_builtin_replacement_mod_blocked(const std::string &mod_id) {
+    if (is_builtin_compatibility_mod(mod_id) && !is_toggleable_builtin_compatibility_mod(mod_id)) {
+        return true;
+    }
+
 #if defined(__APPLE__)
     return mod_id == "mm_recomp_save_editor";
 #else
@@ -36,6 +313,14 @@ static bool is_builtin_replacement_mod_blocked(const std::string &mod_id) {
 }
 
 static bool is_mod_enabled_for_display(const std::string &mod_id) {
+    if (is_builtin_compatibility_mod(mod_id)) {
+        if (is_toggleable_builtin_compatibility_mod(mod_id)) {
+            return get_toggleable_builtin_compatibility_mod_enabled(mod_id);
+        }
+
+        return true;
+    }
+
     return !is_builtin_replacement_mod_blocked(mod_id) && is_mod_enabled_or_auto(mod_id);
 }
 
@@ -268,6 +553,7 @@ void ModMenu::refresh_mods(bool scan_mods) {
         recomp::mods::scan_mods();
     }
     mod_details = recomp::mods::get_all_mod_details(game_mod_id);
+    merge_builtin_compatibility_mods(mod_details);
     create_mod_list();
 }
 
@@ -304,7 +590,10 @@ void ModMenu::open_install_dialog() {
 void ModMenu::mod_toggled(bool enabled) {
     if (active_mod_index >= 0) {
         const std::string& mod_id = mod_details[active_mod_index].mod_id;
-        if (is_builtin_replacement_mod_blocked(mod_id)) {
+        if (is_toggleable_builtin_compatibility_mod(mod_id)) {
+            set_toggleable_builtin_compatibility_mod_enabled(mod_id, enabled);
+        }
+        else if (is_builtin_replacement_mod_blocked(mod_id)) {
             recomp::mods::enable_mod(mod_id, false);
         }
         else {
@@ -330,11 +619,20 @@ void ModMenu::mod_selected(uint32_t mod_index) {
         std::string thumbnail_src = generate_thumbnail_src_for_mod(mod_id);
         const recomp::mods::ConfigSchema &config_schema = recomp::mods::get_mod_config_schema(mod_details[active_mod_index].mod_id);
         bool blocked_mod = is_builtin_replacement_mod_blocked(mod_id);
-        bool toggle_checked = !blocked_mod && is_mod_enabled_or_auto(mod_id);
+        bool built_in_compatibility_mod = is_builtin_compatibility_mod(mod_id);
+        bool toggleable_builtin_compatibility_mod = is_toggleable_builtin_compatibility_mod(mod_id);
+        bool toggle_checked = toggleable_builtin_compatibility_mod
+            ? get_toggleable_builtin_compatibility_mod_enabled(mod_id)
+            : (built_in_compatibility_mod || (!blocked_mod && is_mod_enabled_or_auto(mod_id)));
         bool auto_enabled = recomp::mods::is_mod_auto_enabled(mod_id);
-        bool toggle_enabled = !blocked_mod && !auto_enabled && (mod_details[mod_index].runtime_toggleable || !ultramodern::is_game_started());
-        bool configure_enabled = !config_schema.options.empty();
-        mod_details_panel->set_mod_details(mod_details[mod_index], thumbnail_src, toggle_checked, toggle_enabled, auto_enabled, configure_enabled);
+        bool toggle_enabled = toggleable_builtin_compatibility_mod ||
+            (!blocked_mod && !auto_enabled && (mod_details[mod_index].runtime_toggleable || !ultramodern::is_game_started()));
+        bool configure_enabled = (!built_in_compatibility_mod || is_configurable_builtin_compatibility_mod(mod_id)) &&
+            !config_schema.options.empty();
+        bool toggle_label_visible = (built_in_compatibility_mod && !toggleable_builtin_compatibility_mod) || auto_enabled;
+        std::string toggle_label_text = built_in_compatibility_mod ? "Built into this Android build" : "A currently enabled mod requires this mod";
+        mod_details_panel->set_mod_details(mod_details[mod_index], thumbnail_src, toggle_checked, toggle_enabled,
+            toggle_label_visible, configure_enabled, toggle_label_text);
         mod_entry_buttons[active_mod_index]->set_selected(true);
 
         mod_details_panel->setup_mod_navigation(mod_entry_buttons[mod_index]);
@@ -486,6 +784,8 @@ bool ModMenu::handle_special_config_options(const recomp::mods::ConfigOption& op
 
 void ModMenu::mod_configure_requested() {
     if (active_mod_index >= 0) {
+        const std::string& mod_id = mod_details[active_mod_index].mod_id;
+
         // Record the context that was open when this function was called and close it.
         ContextId prev_context = recompui::get_current_context();
         prev_context.close();
@@ -494,9 +794,9 @@ void ModMenu::mod_configure_requested() {
         sub_menu_context.open();
         config_sub_menu->clear_options();
 
-        const recomp::mods::ConfigSchema &config_schema = recomp::mods::get_mod_config_schema(mod_details[active_mod_index].mod_id);
+        const recomp::mods::ConfigSchema &config_schema = recomp::mods::get_mod_config_schema(mod_id);
         for (const recomp::mods::ConfigOption &option : config_schema.options) {
-            recomp::mods::ConfigValueVariant config_value = recomp::mods::get_mod_config_value(mod_details[active_mod_index].mod_id, option.id);
+            recomp::mods::ConfigValueVariant config_value = recomp::mods::get_mod_config_value(mod_id, option.id);
             if (std::holds_alternative<std::monostate>(config_value)) {
                 continue;
             }
@@ -643,7 +943,9 @@ void ModMenu::process_event(const Event &e) {
         if (active_mod_index != -1) {        
             const std::string& mod_id = mod_details[active_mod_index].mod_id;
             bool auto_enabled = recomp::mods::is_mod_auto_enabled(mod_id);
-            bool toggle_enabled = !is_builtin_replacement_mod_blocked(mod_id) && !auto_enabled && (mod_details[active_mod_index].runtime_toggleable || !ultramodern::is_game_started());
+            bool toggle_enabled = is_toggleable_builtin_compatibility_mod(mod_id) ||
+                (!is_builtin_replacement_mod_blocked(mod_id) && !auto_enabled &&
+                 (mod_details[active_mod_index].runtime_toggleable || !ultramodern::is_game_started()));
             if (!toggle_enabled) {
                 mod_details_panel->disable_toggle();
             }
@@ -709,6 +1011,7 @@ ModMenu::ModMenu(Element *parent) : Element(parent) {
             Button* configure_button = mod_details_panel->get_configure_button();
             install_mods_button = context.create_element<Button>(footer_container, "Install Mods", recompui::ButtonStyle::Primary);
             install_mods_button->add_pressed_callback([this](){ open_install_dialog(); });
+            install_mods_button->set_display(is_android_compatibility_build() ? Display::None : Display::Block);
 
             Element* footer_spacer = context.create_element<Element>(footer_container);
             footer_spacer->set_flex(1.0f, 0.0f);
@@ -719,6 +1022,7 @@ ModMenu::ModMenu(Element *parent) : Element(parent) {
 
             mods_folder_button = context.create_element<Button>(footer_container, "Open Mods Folder", recompui::ButtonStyle::Primary);
             mods_folder_button->add_pressed_callback([this](){ open_mods_folder(); });
+            mods_folder_button->set_display(is_android_compatibility_build() ? Display::None : Display::Block);
             mods_folder_button->set_nav(NavDirection::Up, configure_button);
             mods_folder_button->set_nav_manual(NavDirection::Up, mod_tab_id);
         } // footer_container

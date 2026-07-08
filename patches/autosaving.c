@@ -1026,7 +1026,7 @@ RECOMP_PATCH void ObjWarpstone_Update(Actor* thisx, PlayState* play) {
                 Audio_PlaySfx_MessageDecide();
 
                 // @recomp_use_export_var owls_save_and_quit: Only use normal owl save if quit flag is set.
-                if (owls_save_and_quit) {
+                if (owls_save_and_quit && !recomp_get_owls_never_quit_enabled()) {
                     play->msgCtx.msgMode = MSGMODE_OWL_SAVE_0;
                 } else {
                     Message_CloseTextbox(play);

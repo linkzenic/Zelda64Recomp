@@ -74,12 +74,18 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
     private static final String[] USER_DATA_SUBDIRS = {
             "mods",
             "mod_config",
+            "mod_data",
+            "mod_data/yazmt_z64_playermodelmanager",
+            "mod_data/yazmt_z64_playermodelmanager/models",
+            "mod_data/yazmt_z64_playermodelmanager/models/processed_models",
             "roms",
             "saves",
             "clock_texture_packs"
     };
     private static final String BUNDLED_MODS_ASSET_DIR = "bundled_mods";
     private static final String BUNDLED_MODS_SEEDED_MARKER = ".android_bundled_mods_seeded_v3";
+    private static final String COMPAT_BUILTIN_MODELS_ASSET_DIR = "compat_builtin_models";
+    private static final String COMPAT_BUILTIN_MODELS_SEEDED_MARKER = ".android_compat_builtin_models_seeded_v1";
     private static final String LOG_FILE_NAME = "Zelda64Recompiled.log";
     private static final String CRASH_FILE_NAME = "Zelda64Recompiled_crash.txt";
     private static final String SAFE_MODE_FILE_NAME = "Zelda64Recompiled_safe_mode.flag";
@@ -97,6 +103,7 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
     private static final boolean RT64_FIRST_UPDATE_PROBE = BuildConfig.ZELDA_RT64_FIRST_UPDATE_PROBE;
     private static final boolean RT64_FIRST_DL_PROBE = BuildConfig.ZELDA_RT64_FIRST_DL_PROBE;
     private static final String RT64_DL_PROBE_STAGE = BuildConfig.ZELDA_RT64_DL_PROBE_STAGE;
+    private static final boolean COMPATIBILITY_BUILD = BuildConfig.ZELDA_COMPATIBILITY_BUILD;
     private static final String[] BUNDLED_ANDROID_MODS = {
             "ProxyMM_KV.nrm",
             "ProxyRecomp_KV005.so",
@@ -105,6 +112,69 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
             "yazmt_mm_playermodelmanager.nrm",
             "yazmt_mm_playermodelmanager_fsmodels.nrm",
             "yazmt_mm_playermodelmanager_fsmodels_extlib.so"
+    };
+    private static final String[] COMPATIBILITY_BUILTIN_MODS = {
+            "yazmt_mm_playermodelmanager_fsmodels_extlib.so"
+    };
+    private static final String[] COMPATIBILITY_ANDROID_MODS = {
+            "FdAnywhere.nrm",
+            "MCO_Deck.rtz",
+            "MCO_DualShock.rtz",
+            "MCO_L2_R2.rtz",
+            "MCO_P_D_Nin.rtz",
+            "MCO_P_D_NinP.rtz",
+            "MCO_P_D_NinX.rtz",
+            "MCO_P_D_PS.rtz",
+            "MCO_P_D_Xbox.rtz",
+            "MCO_P_D_XboxN.rtz",
+            "MCO_P_D_XboxP.rtz",
+            "MCO_P_I_Nin.rtz",
+            "MCO_P_I_PS.rtz",
+            "MCO_P_I_Xbox.rtz",
+            "MCO_P_R_Nin.rtz",
+            "MCO_P_R_NinP.rtz",
+            "MCO_P_R_NinX.rtz",
+            "MCO_P_R_PS.rtz",
+            "MCO_P_R_Xbox.rtz",
+            "MCO_P_R_XboxN.rtz",
+            "MCO_P_R_XboxP.rtz",
+            "MCO_Xbox.rtz",
+            "MM_Bow_Aiming_Reticle.nrm",
+            "MM_EZ_Text_Replacer_API.nrm",
+            "Pat_FastFlowerLaunch.nrm",
+            "Pat_Quick_Putaway.nrm",
+            "ProxyMM_3DItems.nrm",
+            "ProxyMM_Cheats.nrm",
+            "ProxyMM_Notifications.nrm",
+            "ProxyMM_ObjDepLoader.nrm",
+            "anyday_wallet_upgrade_oceanside.nrm",
+            "fast_mask.nrm",
+            "magemods_audio_api.nrm",
+            "magemods_lucky_link.nrm",
+            "magemods_more_song_utils.nrm",
+            "mm_3ds_gibdo_trade.nrm",
+            "mm_bigger_wallets.nrm",
+            "mm_caffeination.nrm",
+            "mm_carterisonline_keepmystuff.nrm",
+            "mm_forms_use_more_items.nrm",
+            "mm_modern_controller_overhaul.nrm",
+            "mm_recomp_arrow_cycling.nrm",
+            "mm_recomp_bomb_arrows.nrm",
+            "mm_recomp_do_action_helper.nrm",
+            "mm_recomp_easy_masks.nrm",
+            "mm_recomp_fast_climb.nrm",
+            "mm_recomp_interface_helper.nrm",
+            "mm_recomp_map_overhaul.nrm",
+            "mm_recomp_modern_throwing.nrm",
+            "mm_recomp_reactive_link.nrm",
+            "mm_recomp_textured_stars.nrm",
+            "mm_unsheathe_sword_without_slashing.nrm",
+            "mm_walk_speed_multiplier_mod.nrm",
+            "no_letterboxing.nrm",
+            "owls_never_quit.nrm",
+            "timestop.nrm",
+            "yazmt_mm_bunnyhoodtweaks.nrm",
+            "z_targeting_suite.nrm"
     };
     private static final String[] LITE_BUILD_REMOVED_MODS = {
             "ProxyMM_KV.nrm",
@@ -207,6 +277,9 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
                 removeLiteBuildBundledMods(appDataDir);
             } else {
                 seedBundledAndroidMods(appDataDir);
+                if (COMPATIBILITY_BUILD) {
+                    seedCompatibilityBuiltinModels(appDataDir);
+                }
             }
             Log.i(TAG, "bundled program assets extracted");
             appendLog("Bundled program assets extracted");
@@ -259,6 +332,8 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
         appendLog("APP_ANDROID_MANUFACTURER=" + Build.MANUFACTURER);
         appendLog("APP_ANDROID_MODEL=" + Build.MODEL);
         appendLog("APP_ANDROID_SDK=" + Build.VERSION.SDK_INT);
+        appendLog("APP_ANDROID_COMPATIBILITY_BUILD=" + COMPATIBILITY_BUILD);
+        appendLog("APP_ANDROID_FORCE_N64_MODE=" + forceCompatibilityModeForDevice());
         appendLog("APP_LITE_BUILD=" + LITE_BUILD);
         appendLog("APP_RT64_SETUP_PROBE=" + RT64_SETUP_PROBE);
         appendLog("APP_RT64_POST_INIT_PROBE=" + RT64_POST_INIT_PROBE);
@@ -1058,6 +1133,8 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
         nativeSetenv("APP_ANDROID_MANUFACTURER", Build.MANUFACTURER);
         nativeSetenv("APP_ANDROID_MODEL", Build.MODEL);
         nativeSetenv("APP_ANDROID_SDK", Integer.toString(Build.VERSION.SDK_INT));
+        nativeSetenv("APP_ANDROID_COMPATIBILITY_BUILD", COMPATIBILITY_BUILD ? "1" : "0");
+        nativeSetenv("APP_ANDROID_FORCE_N64_MODE", forceCompatibilityModeForDevice() ? "1" : "0");
         nativeSetenv("APP_LITE_BUILD", LITE_BUILD ? "1" : "0");
         nativeSetenv("APP_RT64_SETUP_PROBE", RT64_SETUP_PROBE ? "1" : "0");
         nativeSetenv("APP_RT64_POST_INIT_PROBE", RT64_POST_INIT_PROBE ? "1" : "0");
@@ -1065,9 +1142,14 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
         nativeSetenv("APP_RT64_FIRST_DL_PROBE", RT64_FIRST_DL_PROBE ? "1" : "0");
         nativeSetenv("APP_RT64_DL_PROBE_STAGE", RT64_DL_PROBE_STAGE);
         nativeSetenv("APP_SAFE_MODE", effectiveSafeModeEnabled() ? "1" : "0");
+        nativeSetenv("APP_ANDROID_SKIP_CODE_MODS", effectiveSafeModeEnabled() ? "1" : "0");
         applyCustomDriverEnvironment();
         applyClockTexturePackEnvironment();
         appendLog("Native startup environment configured");
+    }
+
+    private boolean forceCompatibilityModeForDevice() {
+        return false;
     }
 
     private boolean effectiveSafeModeEnabled() {
@@ -1297,6 +1379,15 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
         }
     }
 
+    private boolean assetDirectoryExists(String assetPath) {
+        try {
+            String[] children = getAssets().list(assetPath);
+            return children != null && children.length > 0;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
     private File resolveAppDataDir() {
         File publicDir = getPublicDataDir();
         if (canUsePublicDataDir(publicDir)) {
@@ -1378,6 +1469,11 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
         removeObsoleteBundledMods(modsDir);
 
         for (String filename : BUNDLED_ANDROID_MODS) {
+            if (COMPATIBILITY_BUILD && isCompatibilityBuiltinMod(filename)) {
+                Log.i(TAG, "Skipping bundled compatibility mod asset: " + filename);
+                continue;
+            }
+
             File outputFile = new File(modsDir, filename);
             String assetPath = BUNDLED_MODS_ASSET_DIR + "/" + filename;
             if (!outputFile.exists() || !assetMatchesFile(assetPath, outputFile)) {
@@ -1390,8 +1486,84 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
             }
         }
 
+        if (COMPATIBILITY_BUILD) {
+            for (String filename : COMPATIBILITY_ANDROID_MODS) {
+                File outputFile = new File(modsDir, filename);
+                String assetPath = BUNDLED_MODS_ASSET_DIR + "/" + filename;
+                if (!outputFile.exists() || !assetMatchesFile(assetPath, outputFile)) {
+                    copyAssetFile(assetPath, outputFile);
+                    Log.i(TAG, "Compatibility Android mod metadata updated: " + filename);
+                    appendLog("Compatibility Android mod metadata updated: " + filename);
+                }
+                else {
+                    Log.i(TAG, "Compatibility Android mod metadata current: " + filename);
+                }
+            }
+        }
+
         if (!seededMarker.exists() && !seededMarker.createNewFile()) {
             Log.w(TAG, "Failed to create bundled mods seeded marker: " + seededMarker);
+        }
+    }
+
+    private boolean isCompatibilityBuiltinMod(String filename) {
+        for (String builtinMod : COMPATIBILITY_BUILTIN_MODS) {
+            if (builtinMod.equals(filename)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void seedCompatibilityBuiltinModels(File dataDir) throws IOException {
+        File modelsDir = new File(dataDir, "mod_data/yazmt_z64_playermodelmanager/models");
+        if (!modelsDir.exists() && !modelsDir.mkdirs()) {
+            throw new IOException("Failed to create compatibility model dir: " + modelsDir);
+        }
+
+        File processedModelsDir = new File(modelsDir, "processed_models");
+        if (!processedModelsDir.exists() && !processedModelsDir.mkdirs()) {
+            throw new IOException("Failed to create compatibility processed model dir: " + processedModelsDir);
+        }
+
+        if (!assetDirectoryExists(COMPAT_BUILTIN_MODELS_ASSET_DIR)) {
+            Log.i(TAG, "Compatibility build has no bundled model pack assets");
+            appendLog("Compatibility build has no bundled model pack assets");
+            return;
+        }
+
+        File seededMarker = new File(modelsDir, COMPAT_BUILTIN_MODELS_SEEDED_MARKER);
+        copyCompatibilityBuiltinModels(COMPAT_BUILTIN_MODELS_ASSET_DIR, modelsDir);
+
+        if (!seededMarker.exists() && !seededMarker.createNewFile()) {
+            Log.w(TAG, "Failed to create compatibility model seeded marker: " + seededMarker);
+        }
+    }
+
+    private void copyCompatibilityBuiltinModels(String assetPath, File outputDir) throws IOException {
+        String[] children = getAssets().list(assetPath);
+        if (children == null || children.length == 0) {
+            String filename = outputDir.getName().toLowerCase(Locale.ROOT);
+            if (filename.equals("oot.z64") || filename.equals("oot.v64") || filename.equals("oot.n64")) {
+                return;
+            }
+
+            if (!outputDir.exists() || !assetMatchesFile(assetPath, outputDir)) {
+                copyAssetFile(assetPath, outputDir);
+                Log.i(TAG, "Compatibility model asset updated: " + outputDir.getName());
+            }
+            return;
+        }
+
+        if (!outputDir.exists() && !outputDir.mkdirs()) {
+            throw new IOException("Failed to create directory " + outputDir);
+        }
+
+        for (String child : children) {
+            if (child.equals(".DS_Store")) {
+                continue;
+            }
+            copyCompatibilityBuiltinModels(assetPath + "/" + child, new File(outputDir, child));
         }
     }
 

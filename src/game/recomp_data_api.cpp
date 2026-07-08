@@ -187,6 +187,8 @@ static void show_fatal_error_message_box(const char* funcname, const char* errst
     assert(false); \
     ultramodern::error_handling::quick_exit(__FILE__, __LINE__, __FUNCTION__);
 
+extern "C" {
+
 // u32 -> 32-bit value hashmap.
 
 void recomputil_create_u32_value_hashmap(uint8_t* rdram, recomp_context* ctx) {
@@ -690,6 +692,8 @@ void recomputil_memory_slotmap_size(uint8_t* rdram, recomp_context* ctx) {
     }
 
     _return(ctx, static_cast<uint32_t>(map->first.size()));
+}
+
 }
 
 // Exports.

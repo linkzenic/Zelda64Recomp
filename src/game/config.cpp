@@ -254,6 +254,10 @@ bool save_general_config(const std::filesystem::path& path) {
     config_json["analog_camera_distance"] = zelda64::get_analog_camera_distance();
     config_json["analog_camera_invert_mode"] = zelda64::get_analog_camera_invert_mode();
     config_json["dpad_items_mode"] = zelda64::get_dpad_items_mode();
+    config_json["compat_fd_anywhere_enabled"] = zelda64::get_compat_fd_anywhere_enabled();
+    config_json["compat_fast_mask_enabled"] = zelda64::get_compat_fast_mask_enabled();
+    config_json["compat_owls_never_quit_enabled"] = zelda64::get_compat_owls_never_quit_enabled();
+    config_json["compat_bomb_arrows_enabled"] = zelda64::get_compat_bomb_arrows_enabled();
     config_json["advanced_settings_mode"] = zelda64::get_advanced_settings_mode();
     config_json["debug_mode"] = zelda64::get_debug_mode_enabled();
 
@@ -274,6 +278,10 @@ void set_general_settings_from_json(const nlohmann::json& config_json) {
     zelda64::set_analog_camera_distance(from_or_default(config_json, "analog_camera_distance", 185));
     zelda64::set_analog_camera_invert_mode(from_or_default(config_json, "analog_camera_invert_mode", zelda64::CameraInvertMode::InvertNone));
     zelda64::set_dpad_items_mode(from_or_default(config_json, "dpad_items_mode", zelda64::DpadItemsMode::On));
+    zelda64::set_compat_fd_anywhere_enabled(from_or_default(config_json, "compat_fd_anywhere_enabled", false));
+    zelda64::set_compat_fast_mask_enabled(from_or_default(config_json, "compat_fast_mask_enabled", false));
+    zelda64::set_compat_owls_never_quit_enabled(from_or_default(config_json, "compat_owls_never_quit_enabled", false));
+    zelda64::set_compat_bomb_arrows_enabled(from_or_default(config_json, "compat_bomb_arrows_enabled", false));
     zelda64::set_advanced_settings_mode(from_or_default(config_json, "advanced_settings_mode", zelda64::AdvancedSettingsMode::Off));
     zelda64::set_debug_mode_enabled(from_or_default(config_json, "debug_mode", false));
 }

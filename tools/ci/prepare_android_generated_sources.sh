@@ -57,7 +57,7 @@ refresh_patch_sources() {
   build_recomp_tools
   build_file_to_c
 
-  CC="${PATCHES_C_COMPILER:-clang}" LD="${PATCHES_LD:-ld.lld}" make -C patches ZELDA_ANDROID_BUILTIN_DPAD=1
+  CC="${PATCHES_C_COMPILER:-clang}" LD="${PATCHES_LD:-ld.lld}" make -C patches ZELDA_ANDROID_BUILTIN_DPAD=1 ZELDA_ANDROID_BUILTIN_PMM="${ZELDA_ANDROID_BUILTIN_PMM:-0}" ZELDA_ANDROID_BUILTIN_CHEATS="${ZELDA_ANDROID_BUILTIN_CHEATS:-0}" ZELDA_ANDROID_BUILTIN_BOMB_ARROWS="${ZELDA_ANDROID_BUILTIN_BOMB_ARROWS:-0}" ZELDA_ANDROID_BUILTIN_MCO="${ZELDA_ANDROID_BUILTIN_MCO:-0}"
   ./N64Recomp patches.toml
   "$FILE_TO_C" patches/patches.bin mm_patches_bin RecompiledPatches/patches_bin.c RecompiledPatches/patches_bin.h
 }

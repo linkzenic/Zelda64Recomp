@@ -104,7 +104,9 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
             "yazmt_mm_global_objects.nrm",
             "yazmt_mm_playermodelmanager.nrm",
             "yazmt_mm_playermodelmanager_fsmodels.nrm",
-            "yazmt_mm_playermodelmanager_fsmodels_extlib.so"
+            "yazmt_mm_playermodelmanager_fsmodels_extlib.so",
+            "magemods_audio_api.nrm",
+            "magemods_audio_api.so"
     };
     private static final String[] LITE_BUILD_REMOVED_MODS = {
             "ProxyMM_KV.nrm",
@@ -114,6 +116,8 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
             "yazmt_mm_playermodelmanager.nrm",
             "yazmt_mm_playermodelmanager_fsmodels.nrm",
             "yazmt_mm_playermodelmanager_fsmodels_extlib.so",
+            "magemods_audio_api.nrm",
+            "magemods_audio_api.so",
             ".android_bundled_mods_seeded_v3",
             "mm_recomp_save_editor-2.nrm"
     };

@@ -115,6 +115,8 @@ These are copied into `/sdcard/Zelda64/mods` on launch. The current bundled pack
 - `yazmt_mm_playermodelmanager.nrm`
 - `yazmt_mm_playermodelmanager_fsmodels.nrm`
 - `yazmt_mm_playermodelmanager_fsmodels_extlib.so`
+- `magemods_audio_api.nrm`
+- `magemods_audio_api.so`
 
 They are bundled as complete Android-ready mod pairs because desktop native binaries are not compatible with Android. Keeping the packages in the APK prevents users from accidentally replacing the Android `.so` files with Linux or desktop versions from normal mod downloads.
 

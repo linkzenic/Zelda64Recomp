@@ -73,6 +73,7 @@ This fork includes a small set of Android-ready mods by default:
 
 - Linkzenic Save Editor is built into app (no need to install)
 - ProxyMM KV
+- MageMod Audio API
 - yazmt Player Model Manager plugin
 
 ProxyMM KV and the player model manager are bundled as complete mod packages, not only as `.so` files. They need Android-native shared libraries, and users would otherwise be likely to download desktop packages whose native binaries are incompatible with Android. Bundling the full Android-ready packages prevents Linux `.so` files from replacing the Android builds.

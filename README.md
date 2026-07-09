@@ -90,4 +90,5 @@ This project is not an emulator and does not include copyrighted game assets. Yo
 - RT64 contributors
 - The Zelda64 Recompiled mod authors whose Android-ready packages are bundled in this fork
 - yazmt
+- MageMods
 - ProxyRecomp_KV

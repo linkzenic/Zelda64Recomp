@@ -106,14 +106,18 @@ namespace zelda64 {
     void set_analog_camera_distance(int distance);
 
     enum class DpadItemsMode {
-        On,
         Off,
+        Default,
+        HDStyle,
         OptionCount
     };
 
     NLOHMANN_JSON_SERIALIZE_ENUM(zelda64::DpadItemsMode, {
-        {zelda64::DpadItemsMode::On, "On"},
-        {zelda64::DpadItemsMode::Off, "Off"}
+        {zelda64::DpadItemsMode::Off, "Off"},
+        {zelda64::DpadItemsMode::Default, "Default"},
+        {zelda64::DpadItemsMode::HDStyle, "HD Style"},
+        {zelda64::DpadItemsMode::HDStyle, "HDStyle"},
+        {zelda64::DpadItemsMode::Default, "On"}
     });
 
     DpadItemsMode get_dpad_items_mode();

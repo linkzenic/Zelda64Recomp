@@ -116,7 +116,7 @@
                     <div class="config-option" data-event-mouseover="set_cur_config_index(5)" id="conf-general__DPad-Items">
                         <button
                             class="config-option__wide-toggle"
-                            data-class-config-option__wide-toggle--on="dpad_items_mode == 'On'"
+                            data-class-config-option__wide-toggle--on="dpad_items_enabled"
                             data-event-click="toggle_dpad_items_mode"
                             data-event-blur="set_cur_config_index(-1)"
                             data-event-focus="set_cur_config_index(5)"

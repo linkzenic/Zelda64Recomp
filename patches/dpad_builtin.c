@@ -2,12 +2,45 @@
 #include "input.h"
 #include "overlays/kaleido_scope/ovl_kaleido_scope/z_kaleido_scope.h"
 
-INCBIN(dpad_icon, "dpad.rgba32.bin");
+// Keep the built-in D-Pad textures in .text for this standalone NRM. The mod
+// packer cannot resolve a .text relocation to .rodata here, even though the
+// runtime only reads the bytes as textures.
+asm(".pushsection .text\n"
+    "\t.local dpad_icon_default\n"
+    "\t.type dpad_icon_default, @object\n"
+    "\t.balign 8\n"
+    "dpad_icon_default:\n"
+    "\t.incbin \"dpad_default.rgba32.bin\"\n\n"
+    "\t.local dpad_icon_hd\n"
+    "\t.type dpad_icon_hd, @object\n"
+    "\t.balign 8\n"
+    "dpad_icon_hd:\n"
+    "\t.incbin \"dpad_hd.rgba32.bin\"\n\n"
+    "\t.balign 8\n"
+    "\t.popsection\n");
+extern u8 dpad_icon_default[];
+extern u8 dpad_icon_hd[];
 
 void CmpDma_LoadFile(uintptr_t segmentVrom, s32 id, void* dst, size_t size);
 
+typedef enum {
+    DPAD_ITEMS_MODE_OFF = 0,
+    DPAD_ITEMS_MODE_DEFAULT = 1,
+    DPAD_ITEMS_MODE_HD_STYLE = 2,
+} DpadItemsMode;
+
+s32 dpad_items_mode = DPAD_ITEMS_MODE_DEFAULT;
+
 static bool dpad_items_enabled(void) {
-    return recomp_get_dpad_items_enabled() != 0;
+    return dpad_items_mode != DPAD_ITEMS_MODE_OFF;
+}
+
+static bool dpad_hd_style_enabled(void) {
+    return dpad_items_mode == DPAD_ITEMS_MODE_HD_STYLE;
+}
+
+static u8* dpad_icon_texture(void) {
+    return dpad_hd_style_enabled() ? dpad_icon_hd : dpad_icon_default;
 }
 
 #define DPAD_W 18
@@ -35,11 +68,51 @@ static bool dpad_items_enabled(void) {
 u8 extra_item_slot_statuses[EXTRA_ITEM_SLOT_COUNT];
 s16 extra_item_slot_alphas[EXTRA_ITEM_SLOT_COUNT];
 u8 extra_button_items[4][EXTRA_ITEM_SLOT_COUNT] = {
-    { ITEM_MASK_DEKU, ITEM_MASK_GORON, ITEM_MASK_ZORA, ITEM_OCARINA_OF_TIME },
-    { ITEM_MASK_DEKU, ITEM_MASK_GORON, ITEM_MASK_ZORA, ITEM_OCARINA_OF_TIME },
-    { ITEM_MASK_DEKU, ITEM_MASK_GORON, ITEM_MASK_ZORA, ITEM_OCARINA_OF_TIME },
-    { ITEM_MASK_DEKU, ITEM_MASK_GORON, ITEM_MASK_ZORA, ITEM_OCARINA_OF_TIME },
+    { ITEM_MASK_GORON, ITEM_MASK_ZORA, ITEM_OCARINA_OF_TIME, ITEM_MASK_DEKU },
+    { ITEM_MASK_GORON, ITEM_MASK_ZORA, ITEM_OCARINA_OF_TIME, ITEM_MASK_DEKU },
+    { ITEM_MASK_GORON, ITEM_MASK_ZORA, ITEM_OCARINA_OF_TIME, ITEM_MASK_DEKU },
+    { ITEM_MASK_GORON, ITEM_MASK_ZORA, ITEM_OCARINA_OF_TIME, ITEM_MASK_DEKU },
 };
+bool dpad_item_icons_loaded = false;
+
+static const u8 dpad_3ds_items[EXTRA_ITEM_SLOT_COUNT] = {
+    ITEM_MASK_GORON,
+    ITEM_MASK_ZORA,
+    ITEM_OCARINA_OF_TIME,
+    ITEM_MASK_DEKU,
+};
+
+static void dpad_apply_3ds_layout(void) {
+    bool changed = false;
+
+    for (int form = 0; form < ARRAY_COUNT(extra_button_items); form++) {
+        for (int slot = 0; slot < EXTRA_ITEM_SLOT_COUNT; slot++) {
+            if (extra_button_items[form][slot] != dpad_3ds_items[slot]) {
+                extra_button_items[form][slot] = dpad_3ds_items[slot];
+                changed = true;
+            }
+        }
+    }
+
+    if (changed) {
+        dpad_item_icons_loaded = false;
+    }
+}
+
+static void dpad_refresh_mode(void) {
+    dpad_items_mode = recomp_get_dpad_items_mode_for_dpad_builtin();
+
+    if (dpad_items_mode < DPAD_ITEMS_MODE_OFF || dpad_items_mode > DPAD_ITEMS_MODE_HD_STYLE) {
+        dpad_items_mode = DPAD_ITEMS_MODE_DEFAULT;
+    }
+
+    dpad_apply_3ds_layout();
+}
+
+static void dpad_load_cross_texture(Gfx** gfx) {
+    gDPLoadTextureBlock((*gfx)++, dpad_icon_texture(), G_IM_FMT_RGBA, G_IM_SIZ_32b, DPAD_IMG_W, DPAD_IMG_H, 0,
+        G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMASK, G_TX_NOMASK, G_TX_NOLOD, G_TX_NOLOD);
+}
 
 #define EQUIP_SLOT_EX_START ARRAY_COUNT(gSaveContext.buttonStatus)
 
@@ -94,12 +167,13 @@ Gfx* Gfx_DrawRect_DropShadowEx(Gfx* gfx, u16 lorigin, u16 rorigin, s16 rectLeft,
 
 RECOMP_HOOK("Interface_DrawItemButtons") void draw_dpad(PlayState* play) {
     PauseContext* pauseCtx = &play->pauseCtx;
+    dpad_refresh_mode();
+
     if (pauseCtx->state != PAUSE_STATE_MAIN && dpad_items_enabled()) {
         OPEN_DISPS(play->state.gfxCtx);
 
         gEXForceUpscale2D(OVERLAY_DISP++, 1);
-        gDPLoadTextureBlock(OVERLAY_DISP++, dpad_icon, G_IM_FMT_RGBA, G_IM_SIZ_32b, DPAD_IMG_W, DPAD_IMG_H, 0,
-            G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMASK, G_TX_NOMASK, G_TX_NOLOD, G_TX_NOLOD);
+        dpad_load_cross_texture(&OVERLAY_DISP);
         // Set a fullscreen scissor.
         gEXPushScissor(OVERLAY_DISP++);
         gEXSetScissor(OVERLAY_DISP++, G_SC_NON_INTERLACE, G_EX_ORIGIN_LEFT, G_EX_ORIGIN_RIGHT, 0, 0, 0, SCREEN_HEIGHT);
@@ -126,9 +200,12 @@ RECOMP_HOOK("Interface_DrawItemButtons") void draw_dpad(PlayState* play) {
         }
 
         gDPSetCombineMode(OVERLAY_DISP++, G_CC_MODULATEIA_PRIM, G_CC_MODULATEIA_PRIM);
-        OVERLAY_DISP = Gfx_DrawRect_DropShadowEx(OVERLAY_DISP, G_EX_ORIGIN_LEFT, G_EX_ORIGIN_LEFT, DPAD_CENTER_X - (DPAD_W/2), DPAD_CENTER_Y - (DPAD_W/2), DPAD_W, DPAD_H,
-            DPAD_DSDX, DPAD_DTDY,
-            255, 255, 255, alpha);
+        gDPPipeSync(OVERLAY_DISP++);
+        gDPSetPrimColor(OVERLAY_DISP++, 0, 0, 255, 255, 255, alpha);
+        gEXTextureRectangle(OVERLAY_DISP++, G_EX_ORIGIN_LEFT, G_EX_ORIGIN_LEFT,
+            (DPAD_CENTER_X - (DPAD_W / 2)) * 4, (DPAD_CENTER_Y - (DPAD_W / 2)) * 4,
+            (DPAD_CENTER_X + (DPAD_W / 2)) * 4, (DPAD_CENTER_Y + (DPAD_H / 2)) * 4,
+            G_TX_RENDERTILE, 0, 0, DPAD_DSDX, DPAD_DTDY);
         gEXForceUpscale2D(OVERLAY_DISP++, 0);
         // Restore the previous scissor.
         gEXPopScissor(OVERLAY_DISP++);
@@ -137,11 +214,12 @@ RECOMP_HOOK("Interface_DrawItemButtons") void draw_dpad(PlayState* play) {
     }
 }
 
-bool dpad_item_icons_loaded = false;
 u8 dpad_item_textures[4][ICON_IMG_SIZE * ICON_IMG_SIZE * 4] __attribute__((aligned(8)));
 
 RECOMP_HOOK("Interface_DrawCButtonIcons") void draw_dpad_icons(PlayState* play) {
     PauseContext* pauseCtx = &play->pauseCtx;
+    dpad_refresh_mode();
+
     if (pauseCtx->state != PAUSE_STATE_MAIN && dpad_items_enabled()) {
         if (!dpad_item_icons_loaded) {
             for (int i = 0; i < 4; i++) {
@@ -158,8 +236,7 @@ RECOMP_HOOK("Interface_DrawCButtonIcons") void draw_dpad_icons(PlayState* play) 
         gEXPushScissor(OVERLAY_DISP++);
         gEXSetScissor(OVERLAY_DISP++, G_SC_NON_INTERLACE, G_EX_ORIGIN_LEFT, G_EX_ORIGIN_RIGHT, 0, 0, 0, SCREEN_HEIGHT);
 
-        gDPLoadTextureBlock(OVERLAY_DISP++, dpad_icon, G_IM_FMT_RGBA, G_IM_SIZ_32b, DPAD_IMG_W, DPAD_IMG_H, 0,
-            G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMASK, G_TX_NOMASK, G_TX_NOLOD, G_TX_NOLOD);
+        dpad_load_cross_texture(&OVERLAY_DISP);
             
         gDPSetCombineMode(OVERLAY_DISP++, G_CC_MODULATEIA_PRIM, G_CC_MODULATEIA_PRIM);
 
@@ -217,6 +294,7 @@ u16 func_801A5100(void);
 // @mod Patched to check the extra item slots. Return currently-pressed button, in order of priority D-Pad, B, CLEFT, CDOWN, CRIGHT.
 RECOMP_PATCH EquipSlot func_8082FDC4(void) {
     EquipSlot i;
+    dpad_refresh_mode();
 
     // @mod Check the extra item slots.
     if (dpad_items_enabled()) {
@@ -1274,6 +1352,8 @@ RECOMP_PATCH void Interface_UpdateHudAlphas(PlayState* play, s16 dimmingAlpha) {
 
 // Set the enabled status when the set item slot statuses event is fired.
 RECOMP_CALLBACK("*", recomp_set_extra_item_slot_statuses) void on_set_slot_statuses(PlayState* play, s32 enabled) {
+    dpad_refresh_mode();
+
     if (!dpad_items_enabled()) {
         enabled = BTN_DISABLED;
     }
@@ -1293,6 +1373,7 @@ RECOMP_HOOK("Interface_UpdateButtonsPart2") void on_update_buttons_part2(PlaySta
     Player* player = GET_PLAYER(play);
     s16 i;
     s16 restoreHudVisibility = false;
+    dpad_refresh_mode();
 
     if (!dpad_items_enabled()) {
         for (i = 0; i < EXTRA_ITEM_SLOT_COUNT; i++) {

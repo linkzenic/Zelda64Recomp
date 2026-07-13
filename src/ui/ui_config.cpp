@@ -45,8 +45,10 @@ int recompui::config_tab_to_index(recompui::ConfigTab tab) {
         return 4;
     case recompui::ConfigTab::Editor:
         return 5;
-    case recompui::ConfigTab::Debug:
+    case recompui::ConfigTab::Quit:
         return 6;
+    case recompui::ConfigTab::Debug:
+        return 7;
     default:
         assert(false && "Unknown config tab.");
         return 0;
@@ -235,7 +237,7 @@ void zelda64::open_quit_game_prompt() {
         recompui::ButtonVariant::Primary,
         recompui::ButtonVariant::Tertiary,
         true,
-        "config__quit-game-button"
+        "tab_quit"
     );
 }
 
@@ -421,11 +423,12 @@ void zelda64::set_dpad_items_mode(zelda64::DpadItemsMode mode) {
     control_options_context.dpad_items_mode = mode;
     if (general_model_handle) {
         general_model_handle.DirtyVariable("dpad_items_mode");
+        general_model_handle.DirtyVariable("dpad_items_enabled");
     }
 }
 
 bool zelda64::get_dpad_items_enabled() {
-    return control_options_context.dpad_items_mode == zelda64::DpadItemsMode::On;
+    return control_options_context.dpad_items_mode != zelda64::DpadItemsMode::Off;
 }
 
 zelda64::AdvancedSettingsMode zelda64::get_advanced_settings_mode() {
@@ -601,13 +604,24 @@ class ConfigTabsetListener : public Rml::EventListener {
     void ProcessEvent(Rml::Event& event) override {
         if (event.GetId() == Rml::EventId::Tabchange) {
             int tab_index = event.GetParameter<int>("tab_index", 0);
-            bool in_mod_tab = (tab_index == recompui::config_tab_to_index(recompui::ConfigTab::Mods));
-            if (in_mod_tab) {
+            Rml::Element* active_tab = nullptr;
+            if (Rml::Element* tabs = recompui::get_child_by_tag(recompui::get_config_tabset(), "tabs")) {
+                if (tab_index >= 0 && tab_index < tabs->GetNumChildren()) {
+                    active_tab = tabs->GetChild(tab_index);
+                }
+            }
+
+            const std::string active_tab_id = active_tab ? active_tab->GetId() : "";
+            if (active_tab_id == "tab_mods") {
                 recompui::update_mod_list(false);
                 recompui::set_config_tabset_mod_nav();
             }
-            else if (tab_index == recompui::config_tab_to_index(recompui::ConfigTab::Editor)) {
+            else if (active_tab_id == "tab_editor") {
                 recompui::refresh_save_editor_config();
+                set_config_tab_nav_downs();
+            }
+            else if (active_tab_id == "tab_quit") {
+                zelda64::open_quit_game_prompt();
                 set_config_tab_nav_downs();
             }
             else {
@@ -1149,6 +1163,9 @@ public:
         bind_option(constructor, "analog_cam_mode", &control_options_context.analog_cam_mode);
         bind_option(constructor, "analog_camera_invert_mode", &control_options_context.analog_camera_invert_mode);
         bind_option(constructor, "dpad_items_mode", &control_options_context.dpad_items_mode);
+        constructor.BindFunc("dpad_items_enabled", [](Rml::Variant& out) {
+            out = zelda64::get_dpad_items_enabled();
+        });
         constructor.BindFunc("advanced_settings_mode",
             [](Rml::Variant& out) { get_option(control_options_context.advanced_settings_mode, out); },
             [](const Rml::Variant& in) {
@@ -1163,12 +1180,20 @@ public:
 
         constructor.BindEventCallback("toggle_dpad_items_mode",
             [](Rml::DataModelHandle model_handle, Rml::Event&, const Rml::VariantList&) {
-                zelda64::set_dpad_items_mode(
-                    zelda64::get_dpad_items_mode() == zelda64::DpadItemsMode::On
-                        ? zelda64::DpadItemsMode::Off
-                        : zelda64::DpadItemsMode::On
-                );
+                switch (zelda64::get_dpad_items_mode()) {
+                    case zelda64::DpadItemsMode::Off:
+                        zelda64::set_dpad_items_mode(zelda64::DpadItemsMode::Default);
+                        break;
+                    case zelda64::DpadItemsMode::Default:
+                        zelda64::set_dpad_items_mode(zelda64::DpadItemsMode::HDStyle);
+                        break;
+                    case zelda64::DpadItemsMode::HDStyle:
+                    case zelda64::DpadItemsMode::OptionCount:
+                        zelda64::set_dpad_items_mode(zelda64::DpadItemsMode::Off);
+                        break;
+                }
                 model_handle.DirtyVariable("dpad_items_mode");
+                model_handle.DirtyVariable("dpad_items_enabled");
             });
 
         constructor.BindEventCallback("toggle_background_input_mode",

@@ -395,7 +395,21 @@ extern "C" void recomp_get_analog_camera_distance(uint8_t* rdram, recomp_context
 }
 
 extern "C" void recomp_get_dpad_items_enabled(uint8_t* rdram, recomp_context* ctx) {
-    _return<s32>(ctx, !android_n64_mode_enabled() && zelda64::get_dpad_items_enabled());
+    if (android_n64_mode_enabled()) {
+        _return<s32>(ctx, 0);
+        return;
+    }
+
+    _return<s32>(ctx, zelda64::get_dpad_items_enabled());
+}
+
+extern "C" void recomp_get_dpad_items_mode_for_dpad_builtin(uint8_t* rdram, recomp_context* ctx) {
+    if (android_n64_mode_enabled()) {
+        _return<s32>(ctx, 0);
+        return;
+    }
+
+    _return<s32>(ctx, static_cast<s32>(zelda64::get_dpad_items_mode()));
 }
 
 extern "C" void recomp_get_clock_style(uint8_t* rdram, recomp_context* ctx) {

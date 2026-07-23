@@ -1,0 +1,191 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -8,8 +8,12 @@ set(CMAKE_SKIP_BUILD_RPATH FALSE)
+ set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+ set(CMAKE_INSTALL_RPATH "$\{ORIGIN\}")
+ 
+-# Include the script to download and set up the Python binary
+-if(WIN32)
++# Include the script to download and set up the Python binary.
++# Android solo generation is bridged through the host app's embedded Python.
++if(ANDROID)
++    set(APCPP_GLUE_WITH_PYTHON OFF)
++elseif(WIN32)
++    set(APCPP_GLUE_WITH_PYTHON ON)
+     if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+         # 64-bit Windows
+         include(${CMAKE_SOURCE_DIR}/PythonStandalone_Win_x64.cmake)
+@@ -20,6 +24,7 @@ if(WIN32)
+         message(FATAL_ERROR "Unknown pointer size.")
+     endif()
+ elseif(CMAKE_SYSTEM_NAME MATCHES "Linux")
++    set(APCPP_GLUE_WITH_PYTHON ON)
+     if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+         # 64-bit Linux
+         include(${CMAKE_SOURCE_DIR}/PythonStandalone_Linux_x64.cmake)
+@@ -31,44 +36,57 @@ elseif(CMAKE_SYSTEM_NAME MATCHES "Linux")
+     endif()
+ endif()
+ 
++if(ANDROID)
++    set(APCPP_SOLO_GEN_SOURCE apcpp-solo-gen-android.cpp)
++else()
++    set(APCPP_SOLO_GEN_SOURCE apcpp-solo-gen.cpp)
++endif()
++
+ add_library(APCpp-Glue SHARED 
+     apcpp-yaml-config-exports.cpp
+     apcpp-glue.cpp
+-    apcpp-solo-gen.cpp
++    ${APCPP_SOLO_GEN_SOURCE}
+     apcpp-glue.h
+     apcpp-solo-gen.h
+ )
+ 
+ target_include_directories(APCpp-Glue PRIVATE lib/APCpp)
+ 
+-if (WIN32)
++if (ANDROID)
++    set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -fPIC")
++    target_link_libraries(APCpp-Glue PRIVATE log)
++elseif (WIN32)
+     target_link_libraries(APCpp-Glue PRIVATE ws2_32)
+ else()
+     set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -fPIC")
+-endif(WIN32)
++endif()
+ 
+ add_subdirectory(lib/APCpp)
+ include_directories(lib/APCpp lib/APCpp/jsoncpp/include)
+ 
+-# Define paths to the outputs
+-set(MINIPELAGO_ZIP_C "${CMAKE_BINARY_DIR}/minipelago.zip.c")
++target_link_libraries(APCpp-Glue PRIVATE APCpp-static)
+ 
+-# Ensure the Python script always runs and generates the C files
+-add_custom_command(
+-    OUTPUT "${CMAKE_BINARY_DIR}/dummy" "${MINIPELAGO_ZIP_C}"
+-    COMMAND "${PYTHON_EXE}" "${CMAKE_SOURCE_DIR}/minipelago/package.py" "${CMAKE_BINARY_DIR}"
+-    DEPENDS "${CMAKE_SOURCE_DIR}/minipelago/package.py" # Ensure the Python script is up-to-date
+-    COMMENT "Packaging zips and generating C arrays"
+-    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+-    VERBATIM
+-)
++if(APCPP_GLUE_WITH_PYTHON)
++    # Define paths to the outputs
++    set(MINIPELAGO_ZIP_C "${CMAKE_BINARY_DIR}/minipelago.zip.c")
+ 
+-# Custom target to ensure the custom command runs every time
+-add_custom_target(generate_c_arrays ALL
+-    DEPENDS "${CMAKE_BINARY_DIR}/dummy"
+-)
++    # Ensure the Python script always runs and generates the C files
++    add_custom_command(
++        OUTPUT "${CMAKE_BINARY_DIR}/dummy" "${MINIPELAGO_ZIP_C}"
++        COMMAND "${PYTHON_EXE}" "${CMAKE_SOURCE_DIR}/minipelago/package.py" "${CMAKE_BINARY_DIR}"
++        DEPENDS "${CMAKE_SOURCE_DIR}/minipelago/package.py"
++        COMMENT "Packaging zips and generating C arrays"
++        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
++        VERBATIM
++    )
+ 
+-add_dependencies(APCpp-Glue generate_c_arrays)
+-target_sources(APCpp-Glue PRIVATE "${MINIPELAGO_ZIP_C}")
+-target_link_libraries(APCpp-Glue PRIVATE APCpp-static python_standalone)
+-link_python_standalone(APCpp-Glue)
++    # Custom target to ensure the custom command runs every time
++    add_custom_target(generate_c_arrays ALL
++        DEPENDS "${CMAKE_BINARY_DIR}/dummy"
++    )
++
++    add_dependencies(APCpp-Glue generate_c_arrays)
++    target_sources(APCpp-Glue PRIVATE "${MINIPELAGO_ZIP_C}")
++    target_link_libraries(APCpp-Glue PRIVATE python_standalone)
++    link_python_standalone(APCpp-Glue)
++endif()
+diff --git a/apcpp-glue.cpp b/apcpp-glue.cpp
+--- a/apcpp-glue.cpp
++++ b/apcpp-glue.cpp
+@@ -3,6 +3,7 @@
+ #include <chrono>
+ #include <iomanip>
+ #include <algorithm>
++#include <thread>
+ 
+ #include "Archipelago.h"
+ #include "apcpp-glue.h"
+@@ -226,14 +227,21 @@ extern "C"
+         AP_SetDeathLinkSupported(state, true);
+         
+         AP_Start(state);
++
++        constexpr auto connection_timeout = std::chrono::seconds{20};
++        const auto connection_deadline = std::chrono::steady_clock::now() + connection_timeout;
+         
+         while (!AP_IsConnected(state))
+         {
+-            if (AP_GetConnectionStatus(state) == AP_ConnectionStatus::ConnectionRefused || AP_GetConnectionStatus(state) == AP_ConnectionStatus::NotFound)
++            const AP_ConnectionStatus connection_status = AP_GetConnectionStatus(state);
++            if (connection_status == AP_ConnectionStatus::ConnectionRefused ||
++                connection_status == AP_ConnectionStatus::NotFound ||
++                std::chrono::steady_clock::now() >= connection_deadline)
+             {
+                 AP_Stop(state);
+                 return false;
+             }
++            std::this_thread::sleep_for(std::chrono::milliseconds{10});
+         }
+         
+         const char* prices_str = AP_GetSlotDataString(state, "shop_prices");
+@@ -433,6 +441,10 @@ extern "C"
+             AP_GetRoomInfo(state, &roomInfo);
+             room_seed_name = std::u8string{ reinterpret_cast<const char8_t*>(roomInfo.seed_name.data()), roomInfo.seed_name.size() };
+         }
++        else {
++            AP_Free(state);
++            state = nullptr;
++        }
+ 
+         _return<u32>(ctx, success);
+     }
+@@ -1084,3 +1096,3 @@ extern "C"
+             fprintf(stderr, "error setting datastorage u32\n");
+-            fprintf(stderr, e.what());
++            fprintf(stderr, "%s", e.what());
+         }
+@@ -1103,3 +1115,3 @@ extern "C"
+             fprintf(stderr, "error setting datastorage u32\n");
+-            fprintf(stderr, e.what());
++            fprintf(stderr, "%s", e.what());
+         }
+@@ -1123,3 +1135,3 @@ extern "C"
+             fprintf(stderr, "error setting datastorage u32\n");
+-            fprintf(stderr, e.what());
++            fprintf(stderr, "%s", e.what());
+         }
+@@ -1142,3 +1154,3 @@ extern "C"
+             fprintf(stderr, "error setting datastorage u32\n");
+-            fprintf(stderr, e.what());
++            fprintf(stderr, "%s", e.what());
+         }
+@@ -1167,3 +1179,3 @@ extern "C"
+             fprintf(stderr, "error setting datastorage u32\n");
+-            fprintf(stderr, e.what());
++            fprintf(stderr, "%s", e.what());
+         }
+@@ -1190,3 +1202,3 @@ extern "C"
+             fprintf(stderr, "error setting datastorage u32\n");
+-            fprintf(stderr, e.what());
++            fprintf(stderr, "%s", e.what());
+         }
+@@ -1215,3 +1227,3 @@ extern "C"
+             fprintf(stderr, "error setting datastorage u32\n");
+-            fprintf(stderr, e.what());
++            fprintf(stderr, "%s", e.what());
+         }
+@@ -1238,3 +1250,3 @@ extern "C"
+             fprintf(stderr, "error setting datastorage u32\n");
+-            fprintf(stderr, e.what());
++            fprintf(stderr, "%s", e.what());
+         }

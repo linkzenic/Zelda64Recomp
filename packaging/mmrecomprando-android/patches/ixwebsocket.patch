@@ -1,0 +1,60 @@
+diff --git a/ixwebsocket/IXSocketMbedTLS.cpp b/ixwebsocket/IXSocketMbedTLS.cpp
+--- a/ixwebsocket/IXSocketMbedTLS.cpp
++++ b/ixwebsocket/IXSocketMbedTLS.cpp
+@@ -17,6 +17,10 @@
+ #include <cstdint>
+ #include <string.h>
+ 
++#ifdef __ANDROID__
++#include <dirent.h>
++#endif
++
+ #ifdef _WIN32
+ // For manipulating the certificate store
+ #include <wincrypt.h>
+@@ -89,11 +93,44 @@ namespace ix
+             return false;
+         }
+ 
++        return true;
++#elif defined(__ANDROID__)
++        const char* certificateDirectory = "/system/etc/security/cacerts";
++        DIR* directory = opendir(certificateDirectory);
++        if (directory == nullptr)
++        {
++            errorMsg = "Cannot open Android system certificate directory";
++            return false;
++        }
++
++        int certificateCount = 0;
++        while (dirent* entry = readdir(directory))
++        {
++            if (entry->d_name[0] == '.')
++            {
++                continue;
++            }
++
++            std::string certificatePath = certificateDirectory;
++            certificatePath += "/";
++            certificatePath += entry->d_name;
++            if (mbedtls_x509_crt_parse_file(&_cacert, certificatePath.c_str()) == 0)
++            {
++                ++certificateCount;
++            }
++        }
++        closedir(directory);
++
++        if (certificateCount == 0)
++        {
++            errorMsg = "No Android system certificates found";
++            return false;
++        }
++
+         return true;
+ #else
+         // On macOS we can query the system cert location from the keychain
+         // On Linux we could try to fetch some local files based on the distribution
+-        // On Android we could use JNI to get to the system certs
+         return false;
+ #endif
+     }

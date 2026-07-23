@@ -149,7 +149,7 @@ def iter_native_libs(path):
         yield str(path), path.read_bytes()
         return
 
-    if path.suffix == ".nrm":
+    if path.suffix in {".nrm", ".zip"}:
         try:
             with zipfile.ZipFile(path) as archive:
                 for entry in archive.infolist():

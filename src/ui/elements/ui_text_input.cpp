@@ -3,6 +3,10 @@
 #include <algorithm>
 #include <cassert>
 
+#if defined(__ANDROID__)
+#include <SDL.h>
+#endif
+
 namespace recompui {
 
     void TextInput::process_event(const Event &e) {
@@ -35,6 +39,14 @@ namespace recompui {
         }
         case EventType::Focus: {
             const EventFocus &event = std::get<EventFocus>(e.variant);
+#if defined(__ANDROID__)
+            if (event.active) {
+                SDL_StartTextInput();
+            }
+            else {
+                SDL_StopTextInput();
+            }
+#endif
             if (focus_callback != nullptr) {
                 focus_callback(event.active);
             }

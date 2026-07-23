@@ -1,0 +1,108 @@
+diff --git a/Archipelago.cpp b/Archipelago.cpp
+--- a/Archipelago.cpp
++++ b/Archipelago.cpp
+@@ -211,17 +211,33 @@ void AP_Init(AP_State* state, const char* ip, const char* game, const char* play
+         ix::initNetSystem();
+         firstInit = true;
+     }
+-    state->webSocket.setUrl("wss://" + state->ap_ip);
++    const std::string ws_prefix = "ws://";
++    const std::string wss_prefix = "wss://";
++    const bool explicit_ws = state->ap_ip.rfind(ws_prefix, 0) == 0;
++    const bool explicit_wss = state->ap_ip.rfind(wss_prefix, 0) == 0;
++    const std::string websocket_url =
++        (explicit_ws || explicit_wss) ? state->ap_ip : wss_prefix + state->ap_ip;
++    const std::string cleartext_url =
++        explicit_wss ? ws_prefix + state->ap_ip.substr(wss_prefix.size())
++                     : (explicit_ws ? state->ap_ip : ws_prefix + state->ap_ip);
++    state->isSSL = !explicit_ws;
++    state->webSocket.setUrl(websocket_url);
+     state->webSocket.setOnMessageCallback([=](const ix::WebSocketMessagePtr& msg)
+         {
+             if (msg->errorInfo.retries >= MAX_RETRIES) {
++#if defined(__ANDROID__)
++                // Never downgrade a secure Android connection implicitly. Local
++                // servers remain available when the user explicitly enters ws://.
++                state->notfound = true;
++#else
+                 if (/*msg->errorInfo.retries-1 >= 1 && */state->isSSL) {
+                     //printf("AP: SSL connection failed. Attempting encrypted...\n");
+-                    state->webSocket.setUrl("ws://" + state->ap_ip);
++                    state->webSocket.setUrl(cleartext_url);
+                     state->isSSL = false;
+                 } else if (msg->errorInfo.retries >= 2*MAX_RETRIES) {
+                     state->notfound = true;
+                 }
++#endif
+             }
+             if (msg->type == ix::WebSocketMessageType::Message)
+             {
+@@ -694,7 +710,7 @@ void AP_DeathLinkSend(AP_State* state) {
+     std::chrono::time_point<std::chrono::system_clock> timestamp = std::chrono::system_clock::now();
+     Json::Value req_t;
+     req_t[0]["cmd"] = "Bounce";
+-    req_t[0]["data"]["time"] = std::chrono::duration_cast<std::chrono::seconds>(timestamp.time_since_epoch()).count();
++    req_t[0]["data"]["time"] = Json::Int64(std::chrono::duration_cast<std::chrono::seconds>(timestamp.time_since_epoch()).count());
+     req_t[0]["data"]["source"] = state->ap_player_name; // Name and Shame >:D
+     req_t[0]["tags"][0] = "DeathLink";
+     APSend(state, state->writer.write(req_t));
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -16,19 +16,49 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+ set(ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+ set(ENABLE_PROGRAMS OFF CACHE BOOL "" FORCE)
+ 
+-# Enable TLS. On Windows, build mbedTLS
++# Enable TLS on every supported platform.
+ set(USE_TLS ON CACHE BOOL "Enable TLS support" FORCE)
+-if (WIN32 AND USE_TLS)
+-    execute_process(COMMAND ${CMAKE_COMMAND} -E remove -f mbedtls-3.4.0)
+-    execute_process(COMMAND ${CMAKE_COMMAND} -E tar xzf ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls-3.4.0.tar.gz)
++
++# Windows and Android use the bundled mbedTLS source archive.
++if ((WIN32 OR ANDROID) AND USE_TLS)
++    set(MBEDTLS_SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/mbedtls-3.4.0)
++    execute_process(COMMAND ${CMAKE_COMMAND} -E remove_directory ${MBEDTLS_SOURCE_DIR})
++    execute_process(
++        COMMAND ${CMAKE_COMMAND} -E tar xzf ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls-3.4.0.tar.gz
++        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
++        RESULT_VARIABLE MBEDTLS_EXTRACT_RESULT
++    )
++    if (NOT MBEDTLS_EXTRACT_RESULT EQUAL 0)
++        message(FATAL_ERROR "Failed to extract bundled mbedTLS")
++    endif()
++    if (ANDROID)
++        set(MBEDTLS_CONFIG_FILE ${MBEDTLS_SOURCE_DIR}/include/mbedtls/mbedtls_config.h)
++        file(READ ${MBEDTLS_CONFIG_FILE} MBEDTLS_CONFIG)
++        string(REPLACE
++            "#define MBEDTLS_AESCE_C"
++            "/* MBEDTLS_AESCE_C disabled for Android's portable arm64 baseline. */"
++            MBEDTLS_CONFIG
++            "${MBEDTLS_CONFIG}"
++        )
++        file(WRITE ${MBEDTLS_CONFIG_FILE} "${MBEDTLS_CONFIG}")
++    endif()
+     set(USE_STATIC_MBEDTLS_LIBRARY ON CACHE BOOL "" FORCE)
+-    set(MBEDTLS_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls-3.4.0/include)
++    set(USE_MBED_TLS ON CACHE BOOL "" FORCE)
++    set(MBEDTLS_FOUND TRUE)
++    set(MBEDTLS_INCLUDE_DIRS ${MBEDTLS_SOURCE_DIR}/include)
+     set(MBEDTLS_VERSION_GREATER_THAN_3 ${MBEDTLS_INCLUDE_DIRS})
+     set(MBEDTLS_LIBRARY mbedtls)
+     set(MBEDX509_LIBRARY mbedx509)
+     set(MBEDCRYPTO_LIBRARY mbedcrypto)
+-    add_subdirectory(${CMAKE_BINARY_DIR}/mbedtls-3.4.0 mbedtls_bin)
+-endif (WIN32 AND USE_TLS)
++    set(MBEDTLS_LIBRARIES mbedtls mbedx509 mbedcrypto)
++    add_compile_definitions(IXWEBSOCKET_USE_MBED_TLS_MIN_VERSION_3)
++    add_subdirectory(${MBEDTLS_SOURCE_DIR} mbedtls_bin)
++    if (ANDROID)
++        target_compile_options(mbedcrypto PRIVATE -Wno-documentation)
++        target_compile_options(mbedx509 PRIVATE -Wno-documentation)
++        target_compile_options(mbedtls PRIVATE -Wno-documentation)
++    endif()
++endif ()
+ 
+ if (NOT MINGW)
+     find_package(ZLIB)

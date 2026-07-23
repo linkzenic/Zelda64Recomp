@@ -229,6 +229,7 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
         }
         Log.i(TAG, "SDLActivity.onCreate returned");
         appendLog("SDLActivity.onCreate returned");
+        RandoGenerator.init(this);
         lockLandscape();
         applyImmersiveFullscreen();
         requestHighRefreshRate();

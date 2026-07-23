@@ -1,5 +1,6 @@
 plugins {
     id 'com.android.application'
+    id 'com.chaquo.python'
 }
 
 final String homeDir = System.getenv('HOME') ?: System.getProperty('user.home')
@@ -32,7 +33,10 @@ final String androidKeyPassword = (project.findProperty('ANDROID_KEY_PASSWORD') 
 final boolean hasAndroidReleaseSigning = androidKeystorePath && androidKeystorePassword && androidKeyAlias && androidKeyPassword
 final File generatedJniLibsDir = layout.buildDirectory.dir('generated/jniLibs').get().asFile
 final File generatedProgramAssetsDir = layout.buildDirectory.dir('generated/programAssets').get().asFile
+final File generatedRandoPythonDir = layout.buildDirectory.dir('generated/randoPython').get().asFile
 final File bundledModsAssetsDir = file('src/main/assets/bundled_mods')
+final File randoGlueDir = file(System.getenv('ZELDA_RANDO_GLUE_DIR') ?: '../../MMRecompAPCppGlue')
+final String randoBuildPython = (System.getenv('ZELDA_RANDO_BUILD_PYTHON') ?: '').toString()
 
 android {
     namespace 'io.github.zelda64recomp'
@@ -42,8 +46,8 @@ android {
         applicationId zeldaApplicationId
         minSdk 24
         targetSdk 36
-        versionCode 68
-        versionName zeldaJavaProbe ? '0.6.8-android-java-probe' : (zeldaSdlNoThreadProbe ? '0.6.8-android-sdl-no-thread-probe' : (zeldaNoopSdlProbe ? '0.6.8-android-sdl-noop-probe' : (zeldaVulkanProbe ? '0.6.8-android-vulkan-probe' : (zeldaRt64SetupProbe ? '0.6.8-rt64-setup-probe' : (zeldaRt64PostInitProbe ? '0.6.8-rt64-post-init-probe' : (zeldaRt64FirstUpdateProbe ? '0.6.8-rt64-first-update-probe' : (zeldaRt64FirstDlProbe ? '0.6.8-rt64-first-dl-probe' : (zeldaRt64DlStageProbe ? "0.6.8-rt64-dl-stage-${zeldaRt64DlProbeStage}-probe" : (zeldaProbe ? '0.6.8-android-sdl-probe' : (zeldaLiteBuild ? '0.6.8-lite' : '0.6.8'))))))))))
+        versionCode 69
+        versionName zeldaJavaProbe ? '0.6.9-android-java-probe' : (zeldaSdlNoThreadProbe ? '0.6.9-android-sdl-no-thread-probe' : (zeldaNoopSdlProbe ? '0.6.9-android-sdl-noop-probe' : (zeldaVulkanProbe ? '0.6.9-android-vulkan-probe' : (zeldaRt64SetupProbe ? '0.6.9-rt64-setup-probe' : (zeldaRt64PostInitProbe ? '0.6.9-rt64-post-init-probe' : (zeldaRt64FirstUpdateProbe ? '0.6.9-rt64-first-update-probe' : (zeldaRt64FirstDlProbe ? '0.6.9-rt64-first-dl-probe' : (zeldaRt64DlStageProbe ? "0.6.9-rt64-dl-stage-${zeldaRt64DlProbeStage}-probe" : (zeldaProbe ? '0.6.9-android-sdl-probe' : (zeldaLiteBuild ? '0.6.9-lite' : '0.6.9'))))))))))
         manifestPlaceholders = [
             zeldaActivityName: zeldaJavaProbe ? 'io.github.zelda64recomp.JavaProbeActivity' : 'io.github.zelda64recomp.ZeldaSDLActivity'
         ]
@@ -83,6 +87,10 @@ android {
                     cppFlags '-O2', '-g', '-DNDEBUG'
                 }
             }
+        }
+
+        ndk {
+            abiFilters 'arm64-v8a'
         }
     }
 
@@ -138,6 +146,27 @@ android {
     }
 }
 
+chaquopy {
+    defaultConfig {
+        version "3.11"
+        if (randoBuildPython) {
+            buildPython randoBuildPython
+        }
+        pip {
+            install "PyYAML==6.0.3"
+            install "schema==0.7.7"
+            install "typing_extensions==4.12.2"
+            install "websockets==12.0"
+        }
+    }
+    sourceSets {
+        main {
+            srcDir "src/main/python"
+            srcDir generatedRandoPythonDir
+        }
+    }
+}
+
 void requirePath(File path, String message) {
     if (!path.exists()) {
         throw new GradleException("${message}: ${path}")
@@ -173,6 +202,82 @@ tasks.register('copySdl2JniLib', Copy) {
     dependsOn tasks.named('validateAndroidBuildEnvironment')
     from("${sdl2Prefix}/lib/libSDL2.so")
     into(new File(generatedJniLibsDir, 'arm64-v8a'))
+}
+
+tasks.register('prepareRandoPythonSources') {
+    group = 'build setup'
+    description = 'Prepare the minipelago Python files used by MMRecompRando solo generation.'
+    doLast {
+        File archipelagoDir = new File(randoGlueDir, 'archipelago')
+        File scriptsDir = new File(randoGlueDir, 'minipelago/scripts')
+        if (!new File(archipelagoDir, 'BaseClasses.py').exists()) {
+            throw new GradleException("MMRecompRando Archipelago sources are missing: ${archipelagoDir}")
+        }
+
+        delete generatedRandoPythonDir
+        generatedRandoPythonDir.mkdirs()
+
+        copy {
+            from(archipelagoDir) {
+                include 'BaseClasses.py'
+                include 'Fill.py'
+                include 'Generate.py'
+                include 'Main.py'
+                include 'MultiServer.py'
+                include 'NetUtils.py'
+                include 'Options.py'
+                include 'Utils.py'
+                include 'settings.py'
+                include 'requirements.txt'
+            }
+            into generatedRandoPythonDir
+        }
+        copy {
+            from(new File(scriptsDir, 'MMGenerate.py'))
+            into generatedRandoPythonDir
+        }
+        copy {
+            from(new File(scriptsDir, 'DummyModuleUpdate.py'))
+            rename { 'ModuleUpdate.py' }
+            into generatedRandoPythonDir
+        }
+        copy {
+            from(new File(scriptsDir, 'worlds_init.py'))
+            rename { '__init__.py' }
+            into new File(generatedRandoPythonDir, 'worlds')
+        }
+        copy {
+            from(archipelagoDir) {
+                include 'worlds/AutoSNIClient.py'
+                include 'worlds/AutoWorld.py'
+                include 'worlds/Files.py'
+                include 'worlds/LauncherComponents.py'
+            }
+            into generatedRandoPythonDir
+        }
+        copy {
+            from(new File(archipelagoDir, 'worlds/generic'))
+            into new File(generatedRandoPythonDir, 'worlds/generic')
+        }
+        copy {
+            from(new File(archipelagoDir, 'worlds/mm_recomp')) {
+                exclude 'docs/**'
+                exclude 'test/**'
+            }
+            into new File(generatedRandoPythonDir, 'worlds/mm_recomp')
+        }
+        copy {
+            from(new File(archipelagoDir, 'worlds/alttp')) {
+                include 'EntranceRandomizer.py'
+                include 'Text.py'
+            }
+            into new File(generatedRandoPythonDir, 'worlds/alttp')
+        }
+        copy {
+            from(new File(scriptsDir, '__init__.py'))
+            into new File(generatedRandoPythonDir, 'worlds/alttp')
+        }
+    }
 }
 
 def registerAdrenoToolsHookCopyTask = { String variantName, String cmakeVariantName ->
@@ -240,6 +345,7 @@ if (zeldaRuntimeApk) {
 
 tasks.named('preBuild') {
     dependsOn tasks.named('copySdl2JniLib')
+    dependsOn tasks.named('prepareRandoPythonSources')
     if (zeldaRuntimeApk) {
         dependsOn tasks.named('copyProgramAssets')
     }

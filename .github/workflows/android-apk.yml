@@ -143,6 +143,11 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - name: Set up Python for Android seed generation
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -169,6 +174,19 @@ jobs:
             "cmake;3.30.3" \
             "ndk;28.2.13676358"
           echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/28.2.13676358" >> "$GITHUB_ENV"
+
+      - name: Build Android Rando package
+        id: rando
+        shell: bash
+        run: |
+          set -euo pipefail
+          tools/ci/build_mmrecomprando_android.sh
+          package_path="$(find dist -name 'MMRecompRando-Android-arm64-*.zip' | head -n 1)"
+          if [[ -z "$package_path" ]]; then
+            echo "Android Rando package was not created" >&2
+            exit 1
+          fi
+          echo "path=$package_path" >> "$GITHUB_OUTPUT"
 
       - name: Cache Android native dependency prefixes
         uses: actions/cache@v4
@@ -208,6 +226,7 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ZELDA_RANDO_BUILD_PYTHON: python3.11
         run: |
           set -euo pipefail
           if [[ '${{ inputs.build_type }}' == 'release' && -z "${ANDROID_KEYSTORE_PATH:-}" ]]; then
@@ -251,26 +270,38 @@ jobs:
           path: ${{ steps.apk.outputs.path }}
           if-no-files-found: error
 
+      - name: Upload Android Rando package
+        uses: actions/upload-artifact@v4
+        with:
+          name: MMRecompRando-Android-arm64
+          path: ${{ steps.rando.outputs.path }}
+          if-no-files-found: error
+
       - name: Publish release
         if: inputs.release_tag != ''
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_TITLE: ${{ inputs.release_title }}
         shell: bash
         run: |
           set -euo pipefail
-          release_title="${{ inputs.release_title }}"
+          release_title="$RELEASE_TITLE"
           if [[ -z "$release_title" ]]; then
-            release_title="${{ inputs.release_tag }}"
+            release_title="$RELEASE_TAG"
           fi
-          release_notes="${{ inputs.release_notes }}"
+          release_notes="$RELEASE_NOTES"
           if [[ -z "$release_notes" ]]; then
             release_notes="Android"
           fi
-          asset_suffix="${{ inputs.release_tag }}"
+          asset_suffix="$RELEASE_TAG"
           asset_suffix="${asset_suffix#android-}"
           asset_name="Zelda64-Recompiled-Android-${asset_suffix}.apk"
           cp "${{ steps.apk.outputs.path }}" "$asset_name"
-          gh release create "${{ inputs.release_tag }}" "$asset_name" \
+          gh release create "$RELEASE_TAG" \
+            "$asset_name" \
+            "${{ steps.rando.outputs.path }}" \
             --target "${{ github.sha }}" \
             --title "$release_title" \
             --notes "$release_notes"

@@ -1,0 +1,10 @@
+{
+    "apcpp_commit": "02018432bdfd257605f81ac84f8f42d57786276b",
+    "glue_commit": "236359fc502eb2f52c47dae0c283fc80c395e971",
+    "glue_repository": "https://github.com/RecompRando/MMRecompAPCppGlue.git",
+    "ixwebsocket_commit": "86bc52ee2eacec63cfca8f16284298eff88cfbd1",
+    "rando_archive_sha256": "0725c897f7f04eaff8f40447da25a7eb0b0dd2b4e1b74d1919b5097f4157216a",
+    "rando_archive_url": "https://github.com/RecompRando/MMRecompRando/releases/download/v0.9.5a/MMRecompRando.zip",
+    "rando_nrm_sha256": "cbef6c752d797c548d16f9d49cbc28909a8716fe0ffee3f0269ab6d13426e123",
+    "rando_release": "v0.9.5a"
+}

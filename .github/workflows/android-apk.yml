@@ -237,7 +237,7 @@ jobs:
           if [[ '${{ inputs.build_type }}' == 'release' ]]; then
             task=':app:assembleRelease'
           fi
-          gradle --no-daemon -p android "$task" -PzeldaProbe=false
+          gradle --no-daemon -p android "$task" -PzeldaProbe=false --stacktrace --info
 
       - name: Locate APK
         id: apk

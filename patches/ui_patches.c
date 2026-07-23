@@ -26,6 +26,7 @@ void ConsoleLogo_Main(GameState* thisx);
 void TitleSetup_Main(GameState* thisx);
 void TitleSetup_SetupTitleScreen(TitleSetupState* this);
 void func_80803EA0(TitleSetupState* this);
+RECOMP_DECLARE_EVENT(recomp_on_setup_init(SetupState* this, s32* handled));
 
 // 10 times bigger than the game's normal buffers.
 typedef struct {
@@ -411,9 +412,7 @@ RECOMP_EXPORT void recomp_android_graph_thread_entry(void* arg) {
     Graph_ThreadEntry(arg);
 }
 
-RECOMP_PATCH void Setup_Init(GameState* thisx) {
-    SetupState* this = (SetupState*)thisx;
-
+RECOMP_EXPORT void recomp_run_setup_init(SetupState* this) {
     this->state.destroy = Setup_Destroy;
     SysFlashrom_InitFlash();
     SaveContext_Init();
@@ -425,6 +424,18 @@ RECOMP_PATCH void Setup_Init(GameState* thisx) {
     } else {
         SET_NEXT_GAMESTATE(&this->state, ConsoleLogo_Init, sizeof(ConsoleLogoState));
     }
+}
+
+RECOMP_PATCH void Setup_Init(GameState* thisx) {
+    SetupState* this = (SetupState*)thisx;
+    s32 handled = false;
+
+    recomp_on_setup_init(this, &handled);
+    if (handled) {
+        return;
+    }
+
+    recomp_run_setup_init(this);
 }
 
 RECOMP_PATCH void ConsoleLogo_Init(GameState* thisx) {

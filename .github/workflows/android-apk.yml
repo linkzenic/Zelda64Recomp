@@ -200,6 +200,12 @@ jobs:
       - name: Prepare generated source helpers
         run: tools/ci/prepare_android_generated_sources.sh
 
+      - name: Check Android Rando runtime exports
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q '"recomp_run_setup_init"' RecompiledPatches/recomp_overlays.inl
+
       - name: Build host file_to_c helper
         shell: bash
         run: |

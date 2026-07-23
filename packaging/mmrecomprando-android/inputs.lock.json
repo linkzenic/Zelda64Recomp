@@ -3,8 +3,10 @@
     "glue_commit": "236359fc502eb2f52c47dae0c283fc80c395e971",
     "glue_repository": "https://github.com/RecompRando/MMRecompAPCppGlue.git",
     "ixwebsocket_commit": "86bc52ee2eacec63cfca8f16284298eff88cfbd1",
-    "rando_archive_sha256": "0725c897f7f04eaff8f40447da25a7eb0b0dd2b4e1b74d1919b5097f4157216a",
-    "rando_archive_url": "https://github.com/RecompRando/MMRecompRando/releases/download/v0.9.5a/MMRecompRando.zip",
-    "rando_nrm_sha256": "cbef6c752d797c548d16f9d49cbc28909a8716fe0ffee3f0269ab6d13426e123",
-    "rando_release": "v0.9.5a"
+    "n64recomp_commit": "68e2a69b7aa831f40678226f34a087b9f1e186fb",
+    "rando_commit": "25ae8d785b17e1297c3bc9b6c3cd2c262bc23411",
+    "rando_mm_decomp_commit": "23beee0717364de43ca9a82957cc910cf818de90",
+    "rando_repository": "https://github.com/RecompRando/MMRecompRando.git",
+    "rando_syms_commit": "50d63debd58ce9f01957142ea91b67b6c7018c96",
+    "rando_version": "0.9.5-android.1"
 }

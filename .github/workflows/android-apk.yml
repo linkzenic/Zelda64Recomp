@@ -181,7 +181,7 @@ jobs:
         run: |
           set -euo pipefail
           tools/ci/build_mmrecomprando_android.sh
-          package_path="$(find dist -name 'MMRecompRando-Android-arm64-*.zip' | head -n 1)"
+          package_path="$(find dist -name 'MMRecompRando-Android-Mod-arm64-*.zip' | head -n 1)"
           if [[ -z "$package_path" ]]; then
             echo "Android Rando package was not created" >&2
             exit 1
@@ -272,14 +272,14 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Zelda64-Recompiled-Android-${{ inputs.build_type }}
+          name: Zelda64-Recompiled-Android-App-${{ inputs.build_type }}
           path: ${{ steps.apk.outputs.path }}
           if-no-files-found: error
 
       - name: Upload Android Rando package
         uses: actions/upload-artifact@v4
         with:
-          name: MMRecompRando-Android-arm64
+          name: MMRecompRando-Android-Mod-arm64
           path: ${{ steps.rando.outputs.path }}
           if-no-files-found: error
 
@@ -303,7 +303,7 @@ jobs:
           fi
           asset_suffix="$RELEASE_TAG"
           asset_suffix="${asset_suffix#android-}"
-          asset_name="Zelda64-Recompiled-Android-${asset_suffix}.apk"
+          asset_name="Zelda64-Recompiled-Android-App-${asset_suffix}.apk"
           cp "${{ steps.apk.outputs.path }}" "$asset_name"
           gh release create "$RELEASE_TAG" \
             "$asset_name" \

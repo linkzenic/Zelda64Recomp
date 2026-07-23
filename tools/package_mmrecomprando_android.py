@@ -116,7 +116,7 @@ address with an explicit `ws://` prefix.
 """
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    output = args.output_dir / f"MMRecompRando-Android-arm64-v{version}.zip"
+    output = args.output_dir / f"MMRecompRando-Android-Mod-arm64-v{version}.zip"
     with zipfile.ZipFile(output, "w") as archive:
         for name, data in payloads.items():
             deterministic_write(archive, name, data)

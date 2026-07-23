@@ -1,0 +1,107 @@
+diff --git a/mod.toml b/mod.toml
+index 3f98682..d619c0e 100644
+--- a/mod.toml
++++ b/mod.toml
+@@ -8,21 +8,21 @@
+ id = "mm_recomp_rando"
+ 
+ # Version of this mod.
+-version = "0.9.5"
++version = "0.9.5-android.1"
+ 
+ # The name that will show up for this mod in the mod menu. This should be human readable.
+-display_name = "MMRecompRando"
++display_name = "MMRecompRando (Android)"
+ 
+ # The description that will show up when this mod is displayed in the mod menu. This should be human readable.
+ description =  """
+-funny zelda rando
+-move the zelda things around
++Android-compatible build of MMRecompRando for Zelda64 Recompiled.
++Based on the upstream RecompRando project.
+ 
+ https://github.com/RecompRando/MMRecompRando"""
+ 
+ # A short description that will show up in this mod's entry in the mod list. This should be human readable and kept short
+ # to prevent it from being cut off due to the limited space.
+-short_description = "hey game different now"
++short_description = "Android-compatible randomizer"
+ 
+ # Authors of this mod.
+ authors = [ "LittleCube", "ThatHypedPerson", "PixelShake92", "Muervo_", "G4M3RL1F3", "dcvz", "CelestialKitsune", "VincentsSin" ]
+diff --git a/include/apcommon.h b/include/apcommon.h
+index 2cfe957..f50006a 100644
+--- a/include/apcommon.h
++++ b/include/apcommon.h
+@@ -4,6 +4,10 @@
+ #include "modding.h"
+ #include "global.h"
+ 
++#ifndef ACTORCTX_FLAG_1
++#define ACTORCTX_FLAG_1 ACTORCTX_FLAG_TELESCOPE_ON
++#endif
++
+ #define GI_BAG_BOMBCHU GI_54
+ 
+ #define GI_SPIN_ATTACK GI_71
+diff --git a/src/cow_hooks.c b/src/cow_hooks.c
+index 5fb2abd..20e0cd9 100644
+--- a/src/cow_hooks.c
++++ b/src/cow_hooks.c
+@@ -3,6 +3,10 @@
+ 
+ #include "apcommon.h"
+ 
++#ifndef WEEKEVENTREG_87_01
++#define WEEKEVENTREG_87_01 WEEKEVENTREG_TALKING_TO_COW_WITH_VOICE
++#endif
++
+ #define LOCATION_COW (0xBEEF00 | EnCow_GetCowID(&this->actor, play))
+ 
+ struct EnCow;
+diff --git a/src/menus.c b/src/menus.c
+index d5baac1..f8ec08c 100644
+--- a/src/menus.c
++++ b/src/menus.c
+@@ -77,6 +77,8 @@ RECOMP_IMPORT("mm_recomp_colors", void colors_set_human_tunic(u8 r, u8 g, u8 b))
+ 
+ RECOMP_DECLARE_EVENT(rando_on_connect());
+ 
++RECOMP_IMPORT("*", void recomp_run_setup_init(SetupState* this));
++
+ bool rando_started = false;
+ bool is_multiworld = false;
+ 
+@@ -111,7 +113,7 @@ void RandoMenu_Main(GameState* thisx) {
+ 
+         colors_set_human_tunic(C_TO_PARAMS(rando_get_tunic_color()));
+         rando_on_connect();
+-        Setup_InitImpl(this);
++        recomp_run_setup_init(this);
+     }
+ 
+     // Setup drawing just so that the renderer sees new frames coming in.
+@@ -121,8 +123,8 @@ void RandoMenu_Main(GameState* thisx) {
+     Rand_Next();
+ }
+ 
+-RECOMP_PATCH void Setup_Init(GameState* thisx) {
+-    SetupState* this = (SetupState*)thisx;
++RECOMP_CALLBACK("*", recomp_on_setup_init) void Rando_SetupInit(SetupState* this, s32* handled) {
++    *handled = true;
+ 
+     // Seed the game's RNG.
+     Rand_Seed(osGetTime());
+diff --git a/src/play_main_hooks.c b/src/play_main_hooks.c
+index b4b022d..1a9ea07 100644
+--- a/src/play_main_hooks.c
++++ b/src/play_main_hooks.c
+@@ -30,7 +30,7 @@ void init_rando()
+ {
+     // Set a dummy save file on init just to make recomp change the save folder. The real save
+     // file will be determined when starting solo or multiworld.
+-    recomp_change_save_file("save.bin");
++    recomp_change_save_file("save");
+     recomp_set_moon_crash_resets_save(false);
+     recomp_set_fd_anywhere(true);
+     recomp_set_no_bow_epona_fix(true);

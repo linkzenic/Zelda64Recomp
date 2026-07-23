@@ -7,7 +7,7 @@ index 3f98682..d619c0e 100644
  
  # Version of this mod.
 -version = "0.9.5"
-+version = "0.9.5-android.1"
++version = "0.9.5-android.2"
  
  # The name that will show up for this mod in the mod menu. This should be human readable.
 -display_name = "MMRecompRando"
@@ -59,6 +59,32 @@ index 5fb2abd..20e0cd9 100644
  #define LOCATION_COW (0xBEEF00 | EnCow_GetCowID(&this->actor, play))
  
  struct EnCow;
+diff --git a/src/apconnect_menu.c b/src/apconnect_menu.c
+index 6ef42dc..2b2de17 100644
+--- a/src/apconnect_menu.c
++++ b/src/apconnect_menu.c
+@@ -20,7 +20,6 @@ static void connectPressed(RecompuiResource resource, const RecompuiEventData* d
+             recompui_close_context(connect_menu.context);
+             randoEmitNormalNotification("Successfully connected");
+             recompui_open_context(connect_menu.context);
+-            rando_set_saved_apconnect(recomp_get_save_file_path(), server_text, slot_text, password_text);
+         }
+         else {
+             recompui_close_context(connect_menu.context);
+@@ -59,10 +58,9 @@ void randoCreateAPConnectMenu() {
+ 
+     createUiFrame(connect_menu.context, &connect_menu.frame);
+ 
+-    char address[64];
+-    char player_name[17];
+-    char password[128];
+-    rando_get_saved_apconnect(recomp_get_save_file_path(), address, player_name, password);
++    const char* address = "archipelago.gg:38281";
++    const char* player_name = "Player1";
++    const char* password = "";
+ 
+     // Create a label for the server address.
+     connect_menu.server_label = recompui_create_label(connect_menu.context, connect_menu.frame.container, "Server Address:Port", LABELSTYLE_NORMAL);
 diff --git a/src/menus.c b/src/menus.c
 index d5baac1..f8ec08c 100644
 --- a/src/menus.c

@@ -107,14 +107,35 @@ diff --git a/CMakeLists.txt b/CMakeLists.txt
 diff --git a/apcpp-glue.cpp b/apcpp-glue.cpp
 --- a/apcpp-glue.cpp
 +++ b/apcpp-glue.cpp
-@@ -3,6 +3,7 @@
+@@ -3,6 +3,8 @@
  #include <chrono>
++#include <cstdlib>
  #include <iomanip>
  #include <algorithm>
 +#include <thread>
  
  #include "Archipelago.h"
  #include "apcpp-glue.h"
+@@ -50,6 +52,19 @@ std::u8string room_seed_name;
+ constexpr std::u8string_view gen_file_prefix = u8"AP_";
+ constexpr std::u8string_view gen_file_suffix = u8"_solo.zip";
+ 
++#if defined(__ANDROID__)
++std::filesystem::path android_rando_save_folder()
++{
++    const char* app_folder = std::getenv("APP_FOLDER_PATH");
++    if (app_folder == nullptr || app_folder[0] == '\0')
++    {
++        return std::filesystem::path{"/storage/emulated/0/Zelda64"} / "saves" / "mm_recomp_rando";
++    }
++
++    return std::filesystem::path{app_folder} / "saves" / "mm_recomp_rando";
++}
++#endif
++
+ u32 hasItem(u64 itemId)
+ {
+     u32 count = 0;
 @@ -226,14 +227,21 @@ extern "C"
          AP_SetDeathLinkSupported(state, true);
          
@@ -138,6 +159,46 @@ diff --git a/apcpp-glue.cpp b/apcpp-glue.cpp
          }
          
          const char* prices_str = AP_GetSlotDataString(state, "shop_prices");
+@@ -357,12 +379,15 @@ extern "C"
+         PTR(char) player_name_ptr = _arg<2, PTR(char)>(rdram, ctx);
+         PTR(char) password_ptr = _arg<3, PTR(char)>(rdram, ctx);
+         
++#if defined(__ANDROID__)
++        std::filesystem::path parent_path = android_rando_save_folder();
++#else
+         std::u8string save_dir;
+         getU8Str(rdram, save_dir_ptr, save_dir);
+-        std::filesystem::path save_file_path{ save_dir };
+-        std::filesystem::path parent_path = save_file_path.parent_path();
+-        
+-        std::ifstream apconnect(save_file_path.parent_path().string() + "/apconnect.txt");
++        std::filesystem::path parent_path = std::filesystem::path{save_dir}.parent_path();
++#endif
++
++        std::ifstream apconnect(parent_path / "apconnect.txt");
+         
+         std::string address = "archipelago.gg:38281";
+         std::string player_name = "Player1";
+@@ -390,12 +415,15 @@ extern "C"
+         PTR(char) player_name_ptr = _arg<2, PTR(char)>(rdram, ctx);
+         PTR(char) password_ptr = _arg<3, PTR(char)>(rdram, ctx);
+         
++#if defined(__ANDROID__)
++        std::filesystem::path parent_path = android_rando_save_folder();
++#else
+         std::u8string save_dir;
+         getU8Str(rdram, save_dir_ptr, save_dir);
+-        std::filesystem::path save_file_path{ save_dir };
+-        std::filesystem::path parent_path = save_file_path.parent_path();
+-        
+-        std::ofstream apconnect(save_file_path.parent_path().string() + "/apconnect.txt", std::ofstream::out);
++        std::filesystem::path parent_path = std::filesystem::path{save_dir}.parent_path();
++#endif
++
++        std::ofstream apconnect(parent_path / "apconnect.txt", std::ofstream::out);
+         
+         std::string address = "";
+         std::string player_name = "";
 @@ -433,6 +441,10 @@ extern "C"
              AP_GetRoomInfo(state, &roomInfo);
              room_seed_name = std::u8string{ reinterpret_cast<const char8_t*>(roomInfo.seed_name.data()), roomInfo.seed_name.size() };
@@ -149,6 +210,27 @@ diff --git a/apcpp-glue.cpp b/apcpp-glue.cpp
  
          _return<u32>(ctx, success);
      }
+@@ -463,14 +495,16 @@ extern "C"
+ 
+     DLLEXPORT void rando_scan_solo_seeds(uint8_t* rdram, recomp_context* ctx)
+     {
+-        std::u8string save_file_path_str;
+         PTR(char) save_file_path_ptr = _arg<0, PTR(char)>(rdram, ctx);
+-        
++
++#if defined(__ANDROID__)
++        solo_state.seed_folder = android_rando_save_folder();
++#else
++        std::u8string save_file_path_str;
+         getU8Str(rdram, save_file_path_ptr, save_file_path_str);
+-        
+         std::filesystem::path save_file_path{ save_file_path_str };
+-        
+         solo_state.seed_folder = save_file_path.parent_path();
++#endif
+         solo_state.seeds.clear();
+         
+         for (const auto& file : std::filesystem::directory_iterator{ solo_state.seed_folder })
 @@ -1084,3 +1096,3 @@ extern "C"
              fprintf(stderr, "error setting datastorage u32\n");
 -            fprintf(stderr, e.what());

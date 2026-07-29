@@ -190,8 +190,8 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
     private float leftStickStartX;
     private float leftStickStartY;
     private int rightStickPointerId = MotionEvent.INVALID_POINTER_ID;
-    private float rightStickLastX;
-    private float rightStickLastY;
+    private float rightStickStartX;
+    private float rightStickStartY;
     private volatile int touchCameraXSensitivity = 100;
     private volatile int touchCameraYSensitivity = 100;
     private final Runnable touchControllerAttachRetry = this::retryTouchControllerAttach;
@@ -800,8 +800,8 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
                 rightStickPointerId == MotionEvent.INVALID_POINTER_ID) {
             ensureTouchControllerAttached();
             rightStickPointerId = pointerId;
-            rightStickLastX = x;
-            rightStickLastY = y;
+            rightStickStartX = x;
+            rightStickStartY = y;
             setAxis(ControllerButtons.AXIS_RX, (short) 0);
             setAxis(ControllerButtons.AXIS_RY, (short) 0);
             return true;
@@ -834,12 +834,10 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
         if (rightIndex >= 0) {
             float sensitivityX = touchCameraXSensitivity / 100.0f;
             float sensitivityY = touchCameraYSensitivity / 100.0f;
-            float x = event.getX(rightIndex);
-            float y = event.getY(rightIndex);
-            float deltaX = (x - rightStickLastX) * sensitivityX;
-            float deltaY = (y - rightStickLastY) * sensitivityY;
-            rightStickLastX = x;
-            rightStickLastY = y;
+            // Displacement from the initial contact remains a held virtual
+            // right-stick value until the finger is lifted.
+            float deltaX = (event.getX(rightIndex) - rightStickStartX) * sensitivityX;
+            float deltaY = (event.getY(rightIndex) - rightStickStartY) * sensitivityY;
             setAxis(ControllerButtons.AXIS_RX,
                     touchCameraDeltaToAxis(deltaX, RIGHT_STICK_X_AXIS_PER_PIXEL));
             setAxis(ControllerButtons.AXIS_RY,

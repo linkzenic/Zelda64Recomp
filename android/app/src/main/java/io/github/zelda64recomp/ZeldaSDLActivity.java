@@ -61,7 +61,10 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
     private static final int ANDROID_SENSOR_GYRO = 1;
     private static final int TOUCH_CONTROLLER_ATTACH_RETRY_LIMIT = 20;
     private static final long TOUCH_CONTROLLER_ATTACH_RETRY_DELAY_MS = 250;
-    private static final float RIGHT_STICK_DRAG_RADIUS_DP = 96.0f;
+    // Match the responsive, velocity-style touch camera used by the other ports:
+    // each swipe updates the held camera speed, and lifting the finger stops it.
+    private static final float RIGHT_STICK_X_AXIS_PER_PIXEL = 0.10f;
+    private static final float RIGHT_STICK_Y_AXIS_PER_PIXEL = 0.30f;
     private static final float LEFT_STICK_DRAG_RADIUS_DP = 51.0f;
     private static final float LEFT_TOUCH_ZONE_WIDTH = 0.46f;
     private static final float RIGHT_TOUCH_ZONE_START = 0.52f;
@@ -187,8 +190,8 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
     private float leftStickStartX;
     private float leftStickStartY;
     private int rightStickPointerId = MotionEvent.INVALID_POINTER_ID;
-    private float rightStickStartX;
-    private float rightStickStartY;
+    private float rightStickLastX;
+    private float rightStickLastY;
     private volatile int touchCameraXSensitivity = 100;
     private volatile int touchCameraYSensitivity = 100;
     private final Runnable touchControllerAttachRetry = this::retryTouchControllerAttach;
@@ -747,8 +750,6 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
     private void setupTouchAreas() {
         final float leftMaxRadius = LEFT_STICK_DRAG_RADIUS_DP *
                 getResources().getDisplayMetrics().density;
-        final float rightMaxRadius = RIGHT_STICK_DRAG_RADIUS_DP *
-                getResources().getDisplayMetrics().density;
         leftJoystick.setVisibility(View.INVISIBLE);
 
         rightScreenArea.setOnTouchListener((view, event) -> {
@@ -757,7 +758,7 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
                 case MotionEvent.ACTION_POINTER_DOWN:
                     return startTouchAreaPointer(view, event, event.getActionIndex());
                 case MotionEvent.ACTION_MOVE:
-                    updateTouchAreaPointers(event, leftMaxRadius, rightMaxRadius);
+                    updateTouchAreaPointers(event, leftMaxRadius);
                     return leftStickPointerId != MotionEvent.INVALID_POINTER_ID ||
                             rightStickPointerId != MotionEvent.INVALID_POINTER_ID;
                 case MotionEvent.ACTION_POINTER_UP:
@@ -799,8 +800,8 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
                 rightStickPointerId == MotionEvent.INVALID_POINTER_ID) {
             ensureTouchControllerAttached();
             rightStickPointerId = pointerId;
-            rightStickStartX = x;
-            rightStickStartY = y;
+            rightStickLastX = x;
+            rightStickLastY = y;
             setAxis(ControllerButtons.AXIS_RX, (short) 0);
             setAxis(ControllerButtons.AXIS_RY, (short) 0);
             return true;
@@ -808,8 +809,7 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
         return false;
     }
 
-    private void updateTouchAreaPointers(MotionEvent event, float leftMaxRadius,
-                                         float rightMaxRadius) {
+    private void updateTouchAreaPointers(MotionEvent event, float leftMaxRadius) {
         int leftIndex = event.findPointerIndex(leftStickPointerId);
         if (leftIndex >= 0) {
             float deltaX = event.getX(leftIndex) - leftStickStartX;
@@ -834,19 +834,22 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
         if (rightIndex >= 0) {
             float sensitivityX = touchCameraXSensitivity / 100.0f;
             float sensitivityY = touchCameraYSensitivity / 100.0f;
-            float deltaX = (event.getX(rightIndex) - rightStickStartX) * sensitivityX;
-            float deltaY = (event.getY(rightIndex) - rightStickStartY) * sensitivityY;
-            float distance = (float) Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-            if (distance > rightMaxRadius && distance > 0.0f) {
-                float scale = rightMaxRadius / distance;
-                deltaX *= scale;
-                deltaY *= scale;
-            }
+            float x = event.getX(rightIndex);
+            float y = event.getY(rightIndex);
+            float deltaX = (x - rightStickLastX) * sensitivityX;
+            float deltaY = (y - rightStickLastY) * sensitivityY;
+            rightStickLastX = x;
+            rightStickLastY = y;
             setAxis(ControllerButtons.AXIS_RX,
-                    (short) (deltaX / rightMaxRadius * Short.MAX_VALUE));
+                    touchCameraDeltaToAxis(deltaX, RIGHT_STICK_X_AXIS_PER_PIXEL));
             setAxis(ControllerButtons.AXIS_RY,
-                    (short) (deltaY / rightMaxRadius * Short.MAX_VALUE));
+                    touchCameraDeltaToAxis(deltaY, RIGHT_STICK_Y_AXIS_PER_PIXEL));
         }
+    }
+
+    private static short touchCameraDeltaToAxis(float delta, float axisPerPixel) {
+        float normalized = Math.max(-1.0f, Math.min(1.0f, delta * axisPerPixel));
+        return (short) Math.round(normalized * Short.MAX_VALUE);
     }
 
     private void releaseTouchAreaPointer(int pointerId) {

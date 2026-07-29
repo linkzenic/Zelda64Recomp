@@ -25,10 +25,22 @@
                         class="button button--primary"
                         style="nav-down:#input_row_button_0_0"
                         data-if="android_has_touch_controls"
-                        data-event-click="toggle_android_touch_controls"
+                        data-event-click="cycle_android_touch_controls"
                     >
-                        <div class="button__label" data-if="!android_touch_controls_disabled">Disable touch controls</div>
-                        <div class="button__label" data-if="android_touch_controls_disabled">Enable touch controls</div>
+                        <div class="button__label" data-if="android_touch_controls_mode == 0">Disable Touch Controls</div>
+                        <div class="button__label" data-if="android_touch_controls_mode == 1">ABXY Touch Controls</div>
+                        <div class="button__label" data-if="android_touch_controls_mode == 2">BAYX Touch Controls</div>
+                        <div class="button__label" data-if="android_touch_controls_mode == 3">GC Layout</div>
+                    </button>
+                    <button
+                        class="button button--primary"
+                        style="nav-down:#touch_camera_x_sensitivity"
+                        data-if="android_has_touch_controls && android_touch_controls_mode != 0"
+                        data-event-click="cycle_android_touch_targeting"
+                    >
+                        <div class="button__label" data-if="android_touch_targeting_mode == 0">Hybrid Targeting</div>
+                        <div class="button__label" data-if="android_touch_targeting_mode == 1">Hold Targeting</div>
+                        <div class="button__label" data-if="android_touch_targeting_mode == 2">Toggle Targeting</div>
                     </button>
                     <button
                         class="button button--warning"
@@ -37,6 +49,41 @@
                     >
                         <div class="button__label">Reset to defaults</div>
                     </button>
+                </div>
+            </div>
+            <div
+                style="display: flex; flex-direction: row; gap: 12dp; margin: 0 24dp 12dp;"
+                data-if="android_has_touch_controls && android_touch_controls_mode != 0"
+            >
+                <div class="config-option" style="flex: 1;">
+                    <label class="config-option__title">Touch Camera X</label>
+                    <div class="config-option__range-wrapper config-option__list">
+                        <label class="config-option__range-label">{{android_touch_camera_x_sensitivity}}%</label>
+                        <input
+                            id="touch_camera_x_sensitivity"
+                            type="range"
+                            min="25"
+                            max="400"
+                            step="5"
+                            style="flex: 1; margin: 0dp; nav-down: #input_row_button_0_0;"
+                            data-value="android_touch_camera_x_sensitivity"
+                        />
+                    </div>
+                </div>
+                <div class="config-option" style="flex: 1;">
+                    <label class="config-option__title">Touch Camera Y</label>
+                    <div class="config-option__range-wrapper config-option__list">
+                        <label class="config-option__range-label">{{android_touch_camera_y_sensitivity}}%</label>
+                        <input
+                            id="touch_camera_y_sensitivity"
+                            type="range"
+                            min="25"
+                            max="400"
+                            step="5"
+                            style="flex: 1; margin: 0dp; nav-down: #input_row_button_0_0;"
+                            data-value="android_touch_camera_y_sensitivity"
+                        />
+                    </div>
                 </div>
             </div>
             <div class="config__wrapper input-config">

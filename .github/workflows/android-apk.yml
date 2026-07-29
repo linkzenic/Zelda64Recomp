@@ -23,6 +23,14 @@ on:
         description: Optional release notes
         required: false
         type: string
+      install_target:
+        description: Package identity to build
+        required: true
+        default: test
+        type: choice
+        options:
+          - test
+          - production
 
 permissions:
   contents: write
@@ -243,7 +251,11 @@ jobs:
           if [[ '${{ inputs.build_type }}' == 'release' ]]; then
             task=':app:assembleRelease'
           fi
-          gradle --no-daemon -p android "$task" -PzeldaProbe=false --stacktrace --info
+          app_id_args=()
+          if [[ '${{ inputs.install_target }}' == 'test' ]]; then
+            app_id_args+=('-PzeldaApplicationId=io.github.zelda64recomp.touchlayouttest')
+          fi
+          gradle --no-daemon -p android "$task" -PzeldaProbe=false "${app_id_args[@]}" --stacktrace --info
 
       - name: Locate APK
         id: apk
@@ -272,7 +284,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Zelda64-Recompiled-Android-App-${{ inputs.build_type }}
+          name: Zelda64-Recompiled-Android-${{ inputs.install_target }}-${{ inputs.build_type }}
           path: ${{ steps.apk.outputs.path }}
           if-no-files-found: error
 

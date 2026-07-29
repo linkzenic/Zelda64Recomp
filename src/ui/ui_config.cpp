@@ -29,6 +29,14 @@ bool configuring_controller = false;
 #if defined(__ANDROID__)
 extern "C" bool zelda64_android_are_touch_controls_disabled();
 extern "C" void zelda64_android_set_touch_controls_disabled(bool disabled);
+extern "C" int zelda64_android_get_touch_face_button_layout();
+extern "C" void zelda64_android_set_touch_face_button_layout(int layout);
+extern "C" int zelda64_android_get_touch_camera_x_sensitivity();
+extern "C" void zelda64_android_set_touch_camera_x_sensitivity(int sensitivity);
+extern "C" int zelda64_android_get_touch_camera_y_sensitivity();
+extern "C" void zelda64_android_set_touch_camera_y_sensitivity(int sensitivity);
+extern "C" int zelda64_android_get_touch_targeting_mode();
+extern "C" void zelda64_android_set_touch_targeting_mode(int mode);
 #endif
 
 int recompui::config_tab_to_index(recompui::ConfigTab tab) {
@@ -933,11 +941,48 @@ public:
             out = false;
 #endif
         });
-        constructor.BindFunc("android_touch_controls_disabled", [](Rml::Variant& out) {
+        constructor.BindFunc("android_touch_controls_mode", [](Rml::Variant& out) {
 #if defined(__ANDROID__)
-            out = zelda64_android_are_touch_controls_disabled();
+            if (zelda64_android_are_touch_controls_disabled()) {
+                out = 0;
+            } else {
+                out = zelda64_android_get_touch_face_button_layout() + 1;
+            }
 #else
-            out = false;
+            out = 0;
+#endif
+        });
+        constructor.BindFunc("android_touch_camera_x_sensitivity",
+            [](Rml::Variant& out) {
+#if defined(__ANDROID__)
+                out = zelda64_android_get_touch_camera_x_sensitivity();
+#else
+                out = 100;
+#endif
+            },
+            [](const Rml::Variant& in) {
+#if defined(__ANDROID__)
+                zelda64_android_set_touch_camera_x_sensitivity(in.Get<int>());
+#endif
+            });
+        constructor.BindFunc("android_touch_camera_y_sensitivity",
+            [](Rml::Variant& out) {
+#if defined(__ANDROID__)
+                out = zelda64_android_get_touch_camera_y_sensitivity();
+#else
+                out = 100;
+#endif
+            },
+            [](const Rml::Variant& in) {
+#if defined(__ANDROID__)
+                zelda64_android_set_touch_camera_y_sensitivity(in.Get<int>());
+#endif
+            });
+        constructor.BindFunc("android_touch_targeting_mode", [](Rml::Variant& out) {
+#if defined(__ANDROID__)
+            out = zelda64_android_get_touch_targeting_mode();
+#else
+            out = 0;
 #endif
         });
 
@@ -971,12 +1016,29 @@ public:
                 graphics_model_handle.DirtyVariable("gfx_help__apply");
             });
 
-        constructor.BindEventCallback("toggle_android_touch_controls",
+        constructor.BindEventCallback("cycle_android_touch_controls",
             [](Rml::DataModelHandle model_handle, Rml::Event& event, const Rml::VariantList& inputs) {
 #if defined(__ANDROID__)
-                bool disabled = zelda64_android_are_touch_controls_disabled();
-                zelda64_android_set_touch_controls_disabled(!disabled);
-                model_handle.DirtyVariable("android_touch_controls_disabled");
+                const bool disabled = zelda64_android_are_touch_controls_disabled();
+                const int layout = zelda64_android_get_touch_face_button_layout();
+                const int current_mode = disabled ? 0 : layout + 1;
+                const int next_mode = (current_mode + 1) % 4;
+
+                if (next_mode == 0) {
+                    zelda64_android_set_touch_controls_disabled(true);
+                } else {
+                    zelda64_android_set_touch_face_button_layout(next_mode - 1);
+                    zelda64_android_set_touch_controls_disabled(false);
+                }
+                model_handle.DirtyVariable("android_touch_controls_mode");
+#endif
+            });
+        constructor.BindEventCallback("cycle_android_touch_targeting",
+            [](Rml::DataModelHandle model_handle, Rml::Event& event, const Rml::VariantList& inputs) {
+#if defined(__ANDROID__)
+                const int next_mode = (zelda64_android_get_touch_targeting_mode() + 1) % 3;
+                zelda64_android_set_touch_targeting_mode(next_mode);
+                model_handle.DirtyVariable("android_touch_targeting_mode");
 #endif
             });
 

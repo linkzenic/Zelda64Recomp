@@ -33,6 +33,7 @@ import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
+import android.view.Gravity;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -61,6 +62,10 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
     private static final int TOUCH_CONTROLLER_ATTACH_RETRY_LIMIT = 20;
     private static final long TOUCH_CONTROLLER_ATTACH_RETRY_DELAY_MS = 250;
     private static final float RIGHT_STICK_DRAG_RADIUS_DP = 96.0f;
+    private static final float LEFT_STICK_DRAG_RADIUS_DP = 51.0f;
+    private static final float LEFT_TOUCH_ZONE_WIDTH = 0.46f;
+    private static final float RIGHT_TOUCH_ZONE_START = 0.52f;
+    private static final long TOUCH_TARGETING_DOUBLE_TAP_MS = 300;
     private static final int REQUEST_OPEN_FILE = 0x5A64;
     private static final int REQUEST_STORAGE_PERMISSION = 0x5A65;
     private static final int REQUEST_OPEN_MOD_FILES = 0x5A66;
@@ -71,6 +76,16 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
     private static final String PREFS_NAME = "io.github.zelda64recomp.prefs";
     private static final String PREF_TOUCH_CONTROLS_DISABLED = "touchControlsDisabled";
     private static final String PREF_TOUCH_CONTROLS_HIDDEN = "touchControlsHidden";
+    private static final String PREF_TOUCH_FACE_BUTTON_LAYOUT = "touchFaceButtonLayout";
+    private static final String PREF_TOUCH_CAMERA_X_SENSITIVITY = "touchCameraXSensitivity";
+    private static final String PREF_TOUCH_CAMERA_Y_SENSITIVITY = "touchCameraYSensitivity";
+    private static final String PREF_TOUCH_TARGETING_MODE = "touchTargetingMode";
+    private static final int TOUCH_FACE_BUTTON_LAYOUT_ABXY = 0;
+    private static final int TOUCH_FACE_BUTTON_LAYOUT_BAYX = 1;
+    private static final int TOUCH_FACE_BUTTON_LAYOUT_GAMECUBE = 2;
+    private static final int TOUCH_TARGETING_HYBRID = 0;
+    private static final int TOUCH_TARGETING_HOLD = 1;
+    private static final int TOUCH_TARGETING_TOGGLE = 2;
     private static final String[] USER_DATA_SUBDIRS = {
             "mods",
             "mod_config",
@@ -173,9 +188,15 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
     private boolean safeModeEnabled;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private int touchControllerAttachRetries;
+    private int leftStickPointerId = MotionEvent.INVALID_POINTER_ID;
+    private float leftStickStartX;
+    private float leftStickStartY;
     private int rightStickPointerId = MotionEvent.INVALID_POINTER_ID;
     private float rightStickStartX;
     private float rightStickStartY;
+    private boolean touchTargetingLatched;
+    private boolean touchTargetingPressed;
+    private long lastTouchTargetTapTime;
     private final Runnable touchControllerAttachRetry = this::retryTouchControllerAttach;
 
     @Override
@@ -510,23 +531,26 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
         leftJoystickKnob = overlayView.findViewById(R.id.left_joystick_knob);
         rightScreenArea = overlayView.findViewById(R.id.right_screen_area);
 
-        addButtonTouchListener(overlayView.findViewById(R.id.buttonA), ControllerButtons.BUTTON_A);
-        addButtonTouchListener(overlayView.findViewById(R.id.buttonB), ControllerButtons.BUTTON_X);
-        addButtonTouchListener(overlayView.findViewById(R.id.buttonX), ControllerButtons.BUTTON_B);
-        addButtonTouchListener(overlayView.findViewById(R.id.buttonY), ControllerButtons.BUTTON_Y);
+        addButtonTouchListener(overlayView.findViewById(R.id.buttonSouth), ControllerButtons.BUTTON_A);
+        addButtonTouchListener(overlayView.findViewById(R.id.buttonEast), ControllerButtons.BUTTON_B);
+        addButtonTouchListener(overlayView.findViewById(R.id.buttonWest), ControllerButtons.BUTTON_X);
+        addButtonTouchListener(overlayView.findViewById(R.id.buttonNorth), ControllerButtons.BUTTON_Y);
+        applyTouchFaceButtonLayout(preferences.getInt(
+                PREF_TOUCH_FACE_BUTTON_LAYOUT, TOUCH_FACE_BUTTON_LAYOUT_ABXY));
         addButtonTouchListener(overlayView.findViewById(R.id.buttonL), ControllerButtons.BUTTON_LB);
-        addAxisButtonTouchListener(overlayView.findViewById(R.id.buttonR), ControllerButtons.AXIS_RT, Short.MAX_VALUE);
-        addAxisButtonTouchListener(overlayView.findViewById(R.id.buttonZ), ControllerButtons.AXIS_LT, Short.MAX_VALUE);
+        addButtonTouchListener(overlayView.findViewById(R.id.buttonR), ControllerButtons.BUTTON_RB);
+        setupTargetButton(overlayView.findViewById(R.id.buttonZ));
+        addAxisButtonTouchListener(overlayView.findViewById(R.id.buttonZR),
+                ControllerButtons.AXIS_RT, Short.MAX_VALUE);
         addButtonTouchListener(overlayView.findViewById(R.id.buttonStart), ControllerButtons.BUTTON_START);
         addButtonTouchListener(overlayView.findViewById(R.id.buttonBack), ControllerButtons.BUTTON_BACK);
 
-        addAxisButtonTouchListener(overlayView.findViewById(R.id.buttonDpadUp), ControllerButtons.AXIS_RY, Short.MIN_VALUE);
-        addAxisButtonTouchListener(overlayView.findViewById(R.id.buttonDpadDown), ControllerButtons.AXIS_RY, Short.MAX_VALUE);
-        addAxisButtonTouchListener(overlayView.findViewById(R.id.buttonDpadLeft), ControllerButtons.AXIS_RX, Short.MIN_VALUE);
-        addAxisButtonTouchListener(overlayView.findViewById(R.id.buttonDpadRight), ControllerButtons.AXIS_RX, Short.MAX_VALUE);
+        addButtonTouchListener(overlayView.findViewById(R.id.buttonDpadUp), ControllerButtons.BUTTON_DPAD_UP);
+        addButtonTouchListener(overlayView.findViewById(R.id.buttonDpadDown), ControllerButtons.BUTTON_DPAD_DOWN);
+        addButtonTouchListener(overlayView.findViewById(R.id.buttonDpadLeft), ControllerButtons.BUTTON_DPAD_LEFT);
+        addButtonTouchListener(overlayView.findViewById(R.id.buttonDpadRight), ControllerButtons.BUTTON_DPAD_RIGHT);
 
-        setupJoystick();
-        setupRightStickArea();
+        setupTouchAreas();
         setupToggleButton();
         applyTouchControlsVisibility();
     }
@@ -561,18 +585,228 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
         runOnUiThread(this::applyTouchControlsVisibility);
     }
 
+    public int getTouchFaceButtonLayoutFromNative() {
+        return preferences == null ? TOUCH_FACE_BUTTON_LAYOUT_ABXY
+                : preferences.getInt(PREF_TOUCH_FACE_BUTTON_LAYOUT, TOUCH_FACE_BUTTON_LAYOUT_ABXY);
+    }
+
+    public void setTouchFaceButtonLayoutFromNative(int layout) {
+        int normalizedLayout = layout >= TOUCH_FACE_BUTTON_LAYOUT_ABXY &&
+                layout <= TOUCH_FACE_BUTTON_LAYOUT_GAMECUBE
+                ? layout : TOUCH_FACE_BUTTON_LAYOUT_ABXY;
+        if (preferences != null) {
+            preferences.edit().putInt(PREF_TOUCH_FACE_BUTTON_LAYOUT, normalizedLayout).apply();
+        }
+        runOnUiThread(() -> applyTouchFaceButtonLayout(normalizedLayout));
+    }
+
+    private void applyTouchFaceButtonLayout(int layout) {
+        if (overlayView == null) {
+            return;
+        }
+
+        Button buttonSouth = overlayView.findViewById(R.id.buttonSouth);
+        Button buttonEast = overlayView.findViewById(R.id.buttonEast);
+        Button buttonWest = overlayView.findViewById(R.id.buttonWest);
+        Button buttonNorth = overlayView.findViewById(R.id.buttonNorth);
+        FrameLayout actionButtonCluster = overlayView.findViewById(R.id.action_button_cluster);
+        if (layout == TOUCH_FACE_BUTTON_LAYOUT_GAMECUBE) {
+            setViewSize(actionButtonCluster, 200, 170);
+            configureFaceButton(buttonSouth, "A", 70, 70,
+                    Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, 20, 0, 0, 20);
+            configureFaceButton(buttonEast, "B", 46, 46,
+                    Gravity.BOTTOM | Gravity.START, 30, 0, 0, 20);
+            configureFaceButton(buttonWest, "X", 46, 46,
+                    Gravity.TOP | Gravity.END, 0, 37, 0, 0);
+            configureFaceButton(buttonNorth, "Y", 46, 46,
+                    Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, 15, 0, 0);
+        } else if (layout == TOUCH_FACE_BUTTON_LAYOUT_BAYX) {
+            setViewSize(actionButtonCluster, 132, 132);
+            configureFaceButton(buttonSouth, "A", 44, 44,
+                    Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, 0, 0, 0, 0);
+            configureFaceButton(buttonEast, "B", 44, 44,
+                    Gravity.CENTER_VERTICAL | Gravity.END, 0, 0, 0, 0);
+            configureFaceButton(buttonWest, "X", 44, 44,
+                    Gravity.CENTER_VERTICAL | Gravity.START, 0, 0, 0, 0);
+            configureFaceButton(buttonNorth, "Y", 44, 44,
+                    Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, 0, 0, 0);
+        } else {
+            setViewSize(actionButtonCluster, 132, 132);
+            configureFaceButton(buttonSouth, "B", 44, 44,
+                    Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, 0, 0, 0, 0);
+            configureFaceButton(buttonEast, "A", 44, 44,
+                    Gravity.CENTER_VERTICAL | Gravity.END, 0, 0, 0, 0);
+            configureFaceButton(buttonWest, "Y", 44, 44,
+                    Gravity.CENTER_VERTICAL | Gravity.START, 0, 0, 0, 0);
+            configureFaceButton(buttonNorth, "X", 44, 44,
+                    Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, 0, 0, 0);
+        }
+    }
+
+    private void configureFaceButton(Button button, String text, int widthDp, int heightDp,
+                                     int gravity, int marginStartDp, int marginTopDp,
+                                     int marginEndDp, int marginBottomDp) {
+        FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) button.getLayoutParams();
+        params.width = dpToPixels(widthDp);
+        params.height = dpToPixels(heightDp);
+        params.gravity = gravity;
+        int marginStart = dpToPixels(marginStartDp);
+        int marginEnd = dpToPixels(marginEndDp);
+        params.setMargins(marginStart, dpToPixels(marginTopDp),
+                marginEnd, dpToPixels(marginBottomDp));
+        params.setMarginStart(marginStart);
+        params.setMarginEnd(marginEnd);
+        button.setLayoutParams(params);
+        button.setText(text);
+    }
+
+    private void setViewSize(View view, int widthDp, int heightDp) {
+        ViewGroup.LayoutParams params = view.getLayoutParams();
+        params.width = dpToPixels(widthDp);
+        params.height = dpToPixels(heightDp);
+        view.setLayoutParams(params);
+    }
+
+    private int dpToPixels(float dp) {
+        return Math.round(dp * getResources().getDisplayMetrics().density);
+    }
+
+    public int getTouchCameraXSensitivityFromNative() {
+        return preferences == null ? 100
+                : preferences.getInt(PREF_TOUCH_CAMERA_X_SENSITIVITY, 100);
+    }
+
+    public void setTouchCameraXSensitivityFromNative(int sensitivity) {
+        if (preferences != null) {
+            preferences.edit().putInt(PREF_TOUCH_CAMERA_X_SENSITIVITY,
+                    clampTouchSensitivity(sensitivity)).apply();
+        }
+    }
+
+    public int getTouchCameraYSensitivityFromNative() {
+        return preferences == null ? 100
+                : preferences.getInt(PREF_TOUCH_CAMERA_Y_SENSITIVITY, 100);
+    }
+
+    public void setTouchCameraYSensitivityFromNative(int sensitivity) {
+        if (preferences != null) {
+            preferences.edit().putInt(PREF_TOUCH_CAMERA_Y_SENSITIVITY,
+                    clampTouchSensitivity(sensitivity)).apply();
+        }
+    }
+
+    private static int clampTouchSensitivity(int sensitivity) {
+        return Math.max(25, Math.min(400, sensitivity));
+    }
+
+    public int getTouchTargetingModeFromNative() {
+        return preferences == null ? TOUCH_TARGETING_HYBRID
+                : preferences.getInt(PREF_TOUCH_TARGETING_MODE, TOUCH_TARGETING_HYBRID);
+    }
+
+    public void setTouchTargetingModeFromNative(int mode) {
+        int normalizedMode = mode >= TOUCH_TARGETING_HYBRID && mode <= TOUCH_TARGETING_TOGGLE
+                ? mode : TOUCH_TARGETING_HYBRID;
+        if (preferences != null) {
+            preferences.edit().putInt(PREF_TOUCH_TARGETING_MODE, normalizedMode).apply();
+        }
+        runOnUiThread(this::resetTouchTargetingState);
+    }
+
+    private void setTouchButtonPressed(Button button, boolean pressed) {
+        button.setPressed(pressed);
+        float scale = pressed ? 0.92f : 1.0f;
+        button.animate().scaleX(scale).scaleY(scale).setDuration(60).start();
+    }
+
+    private void resetTouchTargetingState() {
+        touchTargetingLatched = false;
+        touchTargetingPressed = false;
+        lastTouchTargetTapTime = 0;
+        setAxis(ControllerButtons.AXIS_LT, (short) 0);
+        setTargetButtonsPressed(false);
+    }
+
+    private void setTargetButtonsPressed(boolean pressed) {
+        if (overlayView == null) {
+            return;
+        }
+        setTouchButtonPressed(overlayView.findViewById(R.id.buttonZ), pressed);
+    }
+
+    private void setupTargetButton(Button button) {
+        button.setOnTouchListener((view, event) -> {
+            int targetingMode = getTouchTargetingModeFromNative();
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN: {
+                    ensureTouchControllerAttached();
+                    if (targetingMode == TOUCH_TARGETING_HOLD) {
+                        touchTargetingPressed = true;
+                        setAxis(ControllerButtons.AXIS_LT, Short.MAX_VALUE);
+                        setTargetButtonsPressed(true);
+                        return true;
+                    }
+
+                    if (touchTargetingLatched) {
+                        touchTargetingLatched = false;
+                        touchTargetingPressed = false;
+                        lastTouchTargetTapTime = 0;
+                        setAxis(ControllerButtons.AXIS_LT, (short) 0);
+                        setTargetButtonsPressed(false);
+                        return true;
+                    }
+
+                    if (targetingMode == TOUCH_TARGETING_TOGGLE) {
+                        touchTargetingLatched = true;
+                        setAxis(ControllerButtons.AXIS_LT, Short.MAX_VALUE);
+                        setTargetButtonsPressed(true);
+                        return true;
+                    }
+
+                    long now = android.os.SystemClock.uptimeMillis();
+                    if (lastTouchTargetTapTime != 0 &&
+                            now - lastTouchTargetTapTime <= TOUCH_TARGETING_DOUBLE_TAP_MS) {
+                        touchTargetingLatched = true;
+                        touchTargetingPressed = false;
+                        lastTouchTargetTapTime = 0;
+                    } else {
+                        touchTargetingPressed = true;
+                    }
+                    setAxis(ControllerButtons.AXIS_LT, Short.MAX_VALUE);
+                    setTargetButtonsPressed(true);
+                    return true;
+                }
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    if (targetingMode == TOUCH_TARGETING_HOLD) {
+                        touchTargetingPressed = false;
+                        setAxis(ControllerButtons.AXIS_LT, (short) 0);
+                        setTargetButtonsPressed(false);
+                    } else if (!touchTargetingLatched && touchTargetingPressed) {
+                        touchTargetingPressed = false;
+                        lastTouchTargetTapTime = android.os.SystemClock.uptimeMillis();
+                        setAxis(ControllerButtons.AXIS_LT, (short) 0);
+                        setTargetButtonsPressed(false);
+                    }
+                    return true;
+                default:
+                    return true;
+            }
+        });
+    }
+
     private void addButtonTouchListener(Button button, int buttonNum) {
         button.setOnTouchListener((view, event) -> {
             switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
                     ensureTouchControllerAttached();
                     setButton(buttonNum, true);
-                    button.setPressed(true);
+                    setTouchButtonPressed(button, true);
                     return true;
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL:
                     setButton(buttonNum, false);
-                    button.setPressed(false);
+                    setTouchButtonPressed(button, false);
                     return true;
                 default:
                     return true;
@@ -586,12 +820,12 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
                 case MotionEvent.ACTION_DOWN:
                     ensureTouchControllerAttached();
                     setAxis(axis, value);
-                    button.setPressed(true);
+                    setTouchButtonPressed(button, true);
                     return true;
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL:
                     setAxis(axis, (short) 0);
-                    button.setPressed(false);
+                    setTouchButtonPressed(button, false);
                     return true;
                 default:
                     return true;
@@ -599,105 +833,131 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
         });
     }
 
-    private void setupJoystick() {
-        leftJoystick.post(() -> {
-            final float joystickCenterX = leftJoystick.getWidth() / 2.0f;
-            final float joystickCenterY = leftJoystick.getHeight() / 2.0f;
-            final float maxRadius = leftJoystick.getWidth() / 2.0f - leftJoystickKnob.getWidth() / 2.0f;
-
-            leftJoystick.setOnTouchListener((view, event) -> {
-                switch (event.getActionMasked()) {
-                    case MotionEvent.ACTION_DOWN:
-                    case MotionEvent.ACTION_MOVE: {
-                        ensureTouchControllerAttached();
-                        float deltaX = event.getX() - joystickCenterX;
-                        float deltaY = event.getY() - joystickCenterY;
-                        float distance = (float) Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-                        if (distance > maxRadius && distance > 0.0f) {
-                            float scale = maxRadius / distance;
-                            deltaX *= scale;
-                            deltaY *= scale;
-                        }
-
-                        leftJoystickKnob.setX(joystickCenterX + deltaX - leftJoystickKnob.getWidth() / 2.0f);
-                        leftJoystickKnob.setY(joystickCenterY + deltaY - leftJoystickKnob.getHeight() / 2.0f);
-
-                        setAxis(ControllerButtons.AXIS_LX, (short) (deltaX / maxRadius * Short.MAX_VALUE));
-                        setAxis(ControllerButtons.AXIS_LY, (short) (deltaY / maxRadius * Short.MAX_VALUE));
-                        return true;
-                    }
-                    case MotionEvent.ACTION_UP:
-                    case MotionEvent.ACTION_CANCEL:
-                        leftJoystickKnob.setX(joystickCenterX - leftJoystickKnob.getWidth() / 2.0f);
-                        leftJoystickKnob.setY(joystickCenterY - leftJoystickKnob.getHeight() / 2.0f);
-                        setAxis(ControllerButtons.AXIS_LX, (short) 0);
-                        setAxis(ControllerButtons.AXIS_LY, (short) 0);
-                        return true;
-                    default:
-                        return true;
-                }
-            });
-        });
-    }
-
-    private void setupRightStickArea() {
-        final float maxRadius = RIGHT_STICK_DRAG_RADIUS_DP * getResources().getDisplayMetrics().density;
+    private void setupTouchAreas() {
+        final float leftMaxRadius = LEFT_STICK_DRAG_RADIUS_DP *
+                getResources().getDisplayMetrics().density;
+        final float rightMaxRadius = RIGHT_STICK_DRAG_RADIUS_DP *
+                getResources().getDisplayMetrics().density;
+        leftJoystick.setVisibility(View.INVISIBLE);
 
         rightScreenArea.setOnTouchListener((view, event) -> {
             switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
-                    if (event.getX(0) < view.getWidth() * 0.5f) {
-                        return false;
-                    }
-                    ensureTouchControllerAttached();
-                    rightStickPointerId = event.getPointerId(0);
-                    rightStickStartX = event.getX(0);
-                    rightStickStartY = event.getY(0);
-                    setAxis(ControllerButtons.AXIS_RX, (short) 0);
-                    setAxis(ControllerButtons.AXIS_RY, (short) 0);
-                    return true;
                 case MotionEvent.ACTION_POINTER_DOWN:
-                    if (rightStickPointerId == MotionEvent.INVALID_POINTER_ID) {
-                        int pointerIndex = event.getActionIndex();
-                        ensureTouchControllerAttached();
-                        rightStickPointerId = event.getPointerId(pointerIndex);
-                        rightStickStartX = event.getX(pointerIndex);
-                        rightStickStartY = event.getY(pointerIndex);
-                    }
-                    return true;
-                case MotionEvent.ACTION_MOVE: {
-                    int pointerIndex = event.findPointerIndex(rightStickPointerId);
-                    if (pointerIndex < 0) {
-                        return true;
-                    }
-
-                    float deltaX = event.getX(pointerIndex) - rightStickStartX;
-                    float deltaY = event.getY(pointerIndex) - rightStickStartY;
-                    float distance = (float) Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-                    if (distance > maxRadius && distance > 0.0f) {
-                        float scale = maxRadius / distance;
-                        deltaX *= scale;
-                        deltaY *= scale;
-                    }
-
-                    setAxis(ControllerButtons.AXIS_RX, (short) (deltaX / maxRadius * Short.MAX_VALUE));
-                    setAxis(ControllerButtons.AXIS_RY, (short) (deltaY / maxRadius * Short.MAX_VALUE));
-                    return true;
-                }
+                    return startTouchAreaPointer(view, event, event.getActionIndex());
+                case MotionEvent.ACTION_MOVE:
+                    updateTouchAreaPointers(event, leftMaxRadius, rightMaxRadius);
+                    return leftStickPointerId != MotionEvent.INVALID_POINTER_ID ||
+                            rightStickPointerId != MotionEvent.INVALID_POINTER_ID;
                 case MotionEvent.ACTION_POINTER_UP:
-                    if (event.getPointerId(event.getActionIndex()) != rightStickPointerId) {
-                        return true;
-                    }
+                    releaseTouchAreaPointer(event.getPointerId(event.getActionIndex()));
+                    return true;
                 case MotionEvent.ACTION_UP:
+                    releaseTouchAreaPointer(event.getPointerId(event.getActionIndex()));
+                    return true;
                 case MotionEvent.ACTION_CANCEL:
-                    rightStickPointerId = MotionEvent.INVALID_POINTER_ID;
-                    setAxis(ControllerButtons.AXIS_RX, (short) 0);
-                    setAxis(ControllerButtons.AXIS_RY, (short) 0);
+                    resetLeftStick();
+                    resetRightStick();
                     return true;
                 default:
                     return true;
             }
         });
+    }
+
+    private boolean startTouchAreaPointer(View view, MotionEvent event, int pointerIndex) {
+        float x = event.getX(pointerIndex);
+        float y = event.getY(pointerIndex);
+        int pointerId = event.getPointerId(pointerIndex);
+        if (x < view.getWidth() * LEFT_TOUCH_ZONE_WIDTH &&
+                leftStickPointerId == MotionEvent.INVALID_POINTER_ID) {
+            ensureTouchControllerAttached();
+            leftStickPointerId = pointerId;
+            leftStickStartX = x;
+            leftStickStartY = y;
+            leftJoystick.setX(x - leftJoystick.getWidth() / 2.0f);
+            leftJoystick.setY(y - leftJoystick.getHeight() / 2.0f);
+            leftJoystickKnob.setX(leftJoystick.getWidth() / 2.0f -
+                    leftJoystickKnob.getWidth() / 2.0f);
+            leftJoystickKnob.setY(leftJoystick.getHeight() / 2.0f -
+                    leftJoystickKnob.getHeight() / 2.0f);
+            leftJoystick.setVisibility(View.VISIBLE);
+            return true;
+        }
+        if (x > view.getWidth() * RIGHT_TOUCH_ZONE_START &&
+                rightStickPointerId == MotionEvent.INVALID_POINTER_ID) {
+            ensureTouchControllerAttached();
+            rightStickPointerId = pointerId;
+            rightStickStartX = x;
+            rightStickStartY = y;
+            setAxis(ControllerButtons.AXIS_RX, (short) 0);
+            setAxis(ControllerButtons.AXIS_RY, (short) 0);
+            return true;
+        }
+        return false;
+    }
+
+    private void updateTouchAreaPointers(MotionEvent event, float leftMaxRadius,
+                                         float rightMaxRadius) {
+        int leftIndex = event.findPointerIndex(leftStickPointerId);
+        if (leftIndex >= 0) {
+            float deltaX = event.getX(leftIndex) - leftStickStartX;
+            float deltaY = event.getY(leftIndex) - leftStickStartY;
+            float distance = (float) Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+            if (distance > leftMaxRadius && distance > 0.0f) {
+                float scale = leftMaxRadius / distance;
+                deltaX *= scale;
+                deltaY *= scale;
+            }
+            leftJoystickKnob.setX(leftJoystick.getWidth() / 2.0f + deltaX -
+                    leftJoystickKnob.getWidth() / 2.0f);
+            leftJoystickKnob.setY(leftJoystick.getHeight() / 2.0f + deltaY -
+                    leftJoystickKnob.getHeight() / 2.0f);
+            setAxis(ControllerButtons.AXIS_LX,
+                    (short) (deltaX / leftMaxRadius * Short.MAX_VALUE));
+            setAxis(ControllerButtons.AXIS_LY,
+                    (short) (deltaY / leftMaxRadius * Short.MAX_VALUE));
+        }
+
+        int rightIndex = event.findPointerIndex(rightStickPointerId);
+        if (rightIndex >= 0) {
+            float sensitivityX = getTouchCameraXSensitivityFromNative() / 100.0f;
+            float sensitivityY = getTouchCameraYSensitivityFromNative() / 100.0f;
+            float deltaX = (event.getX(rightIndex) - rightStickStartX) * sensitivityX;
+            float deltaY = (event.getY(rightIndex) - rightStickStartY) * sensitivityY;
+            float distance = (float) Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+            if (distance > rightMaxRadius && distance > 0.0f) {
+                float scale = rightMaxRadius / distance;
+                deltaX *= scale;
+                deltaY *= scale;
+            }
+            setAxis(ControllerButtons.AXIS_RX,
+                    (short) (deltaX / rightMaxRadius * Short.MAX_VALUE));
+            setAxis(ControllerButtons.AXIS_RY,
+                    (short) (deltaY / rightMaxRadius * Short.MAX_VALUE));
+        }
+    }
+
+    private void releaseTouchAreaPointer(int pointerId) {
+        if (pointerId == leftStickPointerId) {
+            resetLeftStick();
+        }
+        if (pointerId == rightStickPointerId) {
+            resetRightStick();
+        }
+    }
+
+    private void resetLeftStick() {
+        leftStickPointerId = MotionEvent.INVALID_POINTER_ID;
+        setAxis(ControllerButtons.AXIS_LX, (short) 0);
+        setAxis(ControllerButtons.AXIS_LY, (short) 0);
+        leftJoystick.setVisibility(View.INVISIBLE);
+    }
+
+    private void resetRightStick() {
+        rightStickPointerId = MotionEvent.INVALID_POINTER_ID;
+        setAxis(ControllerButtons.AXIS_RX, (short) 0);
+        setAxis(ControllerButtons.AXIS_RY, (short) 0);
     }
 
     public static void openFileDialog() {

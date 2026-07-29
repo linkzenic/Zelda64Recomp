@@ -36,11 +36,11 @@
 
         <Button
             android:id="@+id/buttonL"
-            android:layout_width="100dp"
-            android:layout_height="48dp"
+            android:layout_width="84dp"
+            android:layout_height="46dp"
             android:layout_gravity="top|start"
             android:layout_marginStart="16dp"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="72dp"
             android:background="@drawable/touch_trigger_left"
             android:text="L"
             android:textColor="#38FFFFFF"
@@ -48,10 +48,10 @@
 
         <Button
             android:id="@+id/buttonR"
-            android:layout_width="100dp"
-            android:layout_height="48dp"
+            android:layout_width="84dp"
+            android:layout_height="46dp"
             android:layout_gravity="top|end"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="72dp"
             android:layout_marginEnd="16dp"
             android:background="@drawable/touch_trigger_right"
             android:text="R"
@@ -60,60 +60,72 @@
 
         <Button
             android:id="@+id/buttonZ"
-            android:layout_width="100dp"
-            android:layout_height="48dp"
+            android:layout_width="84dp"
+            android:layout_height="46dp"
+            android:layout_gravity="top|start"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/touch_trigger_left"
+            android:text="ZL"
+            android:textColor="#38FFFFFF"
+            android:textSize="16sp" />
+
+        <Button
+            android:id="@+id/buttonZR"
+            android:layout_width="84dp"
+            android:layout_height="46dp"
             android:layout_gravity="top|end"
-            android:layout_marginTop="72dp"
+            android:layout_marginTop="16dp"
             android:layout_marginEnd="16dp"
             android:background="@drawable/touch_trigger_right"
-            android:text="Z"
+            android:text="ZR"
             android:textColor="#38FFFFFF"
             android:textSize="16sp" />
 
         <ImageView
             android:id="@+id/dpad_cross"
-            android:layout_width="84dp"
-            android:layout_height="84dp"
-            android:layout_gravity="bottom|start"
-            android:layout_marginStart="49dp"
-            android:layout_marginBottom="184dp"
+            android:layout_width="96dp"
+            android:layout_height="96dp"
+            android:layout_gravity="top|start"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="140dp"
             android:alpha="0.45"
             android:src="@drawable/touch_dpad_cross" />
 
         <Button
             android:id="@+id/buttonDpadUp"
-            android:layout_width="34dp"
-            android:layout_height="34dp"
-            android:layout_gravity="bottom|start"
-            android:layout_marginStart="74dp"
-            android:layout_marginBottom="234dp"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            android:layout_gravity="top|start"
+            android:layout_marginStart="43dp"
+            android:layout_marginTop="140dp"
             android:background="@android:color/transparent" />
 
         <Button
             android:id="@+id/buttonDpadDown"
-            android:layout_width="34dp"
-            android:layout_height="34dp"
-            android:layout_gravity="bottom|start"
-            android:layout_marginStart="74dp"
-            android:layout_marginBottom="184dp"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            android:layout_gravity="top|start"
+            android:layout_marginStart="43dp"
+            android:layout_marginTop="194dp"
             android:background="@android:color/transparent" />
 
         <Button
             android:id="@+id/buttonDpadLeft"
-            android:layout_width="34dp"
-            android:layout_height="34dp"
-            android:layout_gravity="bottom|start"
-            android:layout_marginStart="49dp"
-            android:layout_marginBottom="209dp"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            android:layout_gravity="top|start"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="167dp"
             android:background="@android:color/transparent" />
 
         <Button
             android:id="@+id/buttonDpadRight"
-            android:layout_width="34dp"
-            android:layout_height="34dp"
-            android:layout_gravity="bottom|start"
-            android:layout_marginStart="99dp"
-            android:layout_marginBottom="209dp"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            android:layout_gravity="top|start"
+            android:layout_marginStart="70dp"
+            android:layout_marginTop="167dp"
             android:background="@android:color/transparent" />
 
         <FrameLayout
@@ -121,44 +133,44 @@
             android:layout_width="132dp"
             android:layout_height="132dp"
             android:layout_gravity="bottom|end"
-            android:layout_marginEnd="42dp"
-            android:layout_marginBottom="118dp">
+            android:layout_marginEnd="24dp"
+            android:layout_marginBottom="35dp">
 
             <Button
-                android:id="@+id/buttonY"
+                android:id="@+id/buttonWest"
                 android:layout_width="44dp"
                 android:layout_height="44dp"
-                android:layout_gravity="top|center_horizontal"
+                android:layout_gravity="center_vertical|start"
                 android:background="@drawable/touch_button"
                 android:text="Y"
                 android:textColor="#38FFFFFF"
                 android:textSize="16sp" />
 
             <Button
-                android:id="@+id/buttonB"
+                android:id="@+id/buttonSouth"
                 android:layout_width="44dp"
                 android:layout_height="44dp"
-                android:layout_gravity="center_vertical|start"
+                android:layout_gravity="bottom|center_horizontal"
                 android:background="@drawable/touch_button"
                 android:text="B"
                 android:textColor="#38FFFFFF"
                 android:textSize="16sp" />
 
             <Button
-                android:id="@+id/buttonX"
+                android:id="@+id/buttonNorth"
                 android:layout_width="44dp"
                 android:layout_height="44dp"
-                android:layout_gravity="center_vertical|end"
+                android:layout_gravity="top|center_horizontal"
                 android:background="@drawable/touch_button"
                 android:text="X"
                 android:textColor="#38FFFFFF"
                 android:textSize="16sp" />
 
             <Button
-                android:id="@+id/buttonA"
+                android:id="@+id/buttonEast"
                 android:layout_width="44dp"
                 android:layout_height="44dp"
-                android:layout_gravity="bottom|center_horizontal"
+                android:layout_gravity="center_vertical|end"
                 android:background="@drawable/touch_button"
                 android:text="A"
                 android:textColor="#38FFFFFF"
@@ -170,7 +182,7 @@
             android:layout_width="58dp"
             android:layout_height="32dp"
             android:layout_gravity="bottom|center_horizontal"
-            android:layout_marginEnd="74dp"
+            android:layout_marginEnd="75dp"
             android:layout_marginBottom="10dp"
             android:background="@drawable/touch_rect_button"
             android:text="Back"
@@ -182,7 +194,7 @@
             android:layout_width="58dp"
             android:layout_height="32dp"
             android:layout_gravity="bottom|center_horizontal"
-            android:layout_marginStart="74dp"
+            android:layout_marginStart="75dp"
             android:layout_marginBottom="10dp"
             android:background="@drawable/touch_rect_button"
             android:text="Start"

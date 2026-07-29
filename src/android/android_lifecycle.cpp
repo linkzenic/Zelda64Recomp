@@ -177,3 +177,139 @@ extern "C" __attribute__((visibility("default"))) void zelda64_android_set_touch
     env->DeleteLocalRef(activityClass);
     env->DeleteLocalRef(activity);
 }
+
+extern "C" __attribute__((visibility("default"))) int zelda64_android_get_touch_face_button_layout() {
+    JNIEnv* env = static_cast<JNIEnv*>(SDL_AndroidGetJNIEnv());
+    if (env == nullptr) {
+        return 0;
+    }
+
+    jobject activity = getActivity(env);
+    if (activity == nullptr) {
+        return 0;
+    }
+
+    jclass activityClass = env->GetObjectClass(activity);
+    jmethodID method =
+        env->GetMethodID(activityClass, "getTouchFaceButtonLayoutFromNative", "()I");
+    if (method == nullptr) {
+        __android_log_print(
+            ANDROID_LOG_WARN, kLogTag, "getTouchFaceButtonLayoutFromNative method not found");
+        env->DeleteLocalRef(activityClass);
+        env->DeleteLocalRef(activity);
+        return 0;
+    }
+
+    const int layout = env->CallIntMethod(activity, method);
+    env->DeleteLocalRef(activityClass);
+    env->DeleteLocalRef(activity);
+    return layout;
+}
+
+extern "C" __attribute__((visibility("default"))) void zelda64_android_set_touch_face_button_layout(
+    int layout) {
+    JNIEnv* env = static_cast<JNIEnv*>(SDL_AndroidGetJNIEnv());
+    if (env == nullptr) {
+        return;
+    }
+
+    jobject activity = getActivity(env);
+    if (activity == nullptr) {
+        return;
+    }
+
+    jclass activityClass = env->GetObjectClass(activity);
+    jmethodID method =
+        env->GetMethodID(activityClass, "setTouchFaceButtonLayoutFromNative", "(I)V");
+    if (method == nullptr) {
+        __android_log_print(
+            ANDROID_LOG_WARN, kLogTag, "setTouchFaceButtonLayoutFromNative method not found");
+        env->DeleteLocalRef(activityClass);
+        env->DeleteLocalRef(activity);
+        return;
+    }
+
+    env->CallVoidMethod(activity, method, static_cast<jint>(layout));
+    env->DeleteLocalRef(activityClass);
+    env->DeleteLocalRef(activity);
+}
+
+namespace {
+int getTouchIntegerPreference(const char* methodName, int fallback) {
+    JNIEnv* env = static_cast<JNIEnv*>(SDL_AndroidGetJNIEnv());
+    if (env == nullptr) {
+        return fallback;
+    }
+
+    jobject activity = getActivity(env);
+    if (activity == nullptr) {
+        return fallback;
+    }
+
+    jclass activityClass = env->GetObjectClass(activity);
+    jmethodID method = env->GetMethodID(activityClass, methodName, "()I");
+    if (method == nullptr) {
+        __android_log_print(ANDROID_LOG_WARN, kLogTag, "%s method not found", methodName);
+        env->DeleteLocalRef(activityClass);
+        env->DeleteLocalRef(activity);
+        return fallback;
+    }
+
+    const int value = env->CallIntMethod(activity, method);
+    env->DeleteLocalRef(activityClass);
+    env->DeleteLocalRef(activity);
+    return value;
+}
+
+void setTouchIntegerPreference(const char* methodName, int value) {
+    JNIEnv* env = static_cast<JNIEnv*>(SDL_AndroidGetJNIEnv());
+    if (env == nullptr) {
+        return;
+    }
+
+    jobject activity = getActivity(env);
+    if (activity == nullptr) {
+        return;
+    }
+
+    jclass activityClass = env->GetObjectClass(activity);
+    jmethodID method = env->GetMethodID(activityClass, methodName, "(I)V");
+    if (method == nullptr) {
+        __android_log_print(ANDROID_LOG_WARN, kLogTag, "%s method not found", methodName);
+        env->DeleteLocalRef(activityClass);
+        env->DeleteLocalRef(activity);
+        return;
+    }
+
+    env->CallVoidMethod(activity, method, static_cast<jint>(value));
+    env->DeleteLocalRef(activityClass);
+    env->DeleteLocalRef(activity);
+}
+}
+
+extern "C" __attribute__((visibility("default"))) int zelda64_android_get_touch_camera_x_sensitivity() {
+    return getTouchIntegerPreference("getTouchCameraXSensitivityFromNative", 100);
+}
+
+extern "C" __attribute__((visibility("default"))) void zelda64_android_set_touch_camera_x_sensitivity(
+    int sensitivity) {
+    setTouchIntegerPreference("setTouchCameraXSensitivityFromNative", sensitivity);
+}
+
+extern "C" __attribute__((visibility("default"))) int zelda64_android_get_touch_camera_y_sensitivity() {
+    return getTouchIntegerPreference("getTouchCameraYSensitivityFromNative", 100);
+}
+
+extern "C" __attribute__((visibility("default"))) void zelda64_android_set_touch_camera_y_sensitivity(
+    int sensitivity) {
+    setTouchIntegerPreference("setTouchCameraYSensitivityFromNative", sensitivity);
+}
+
+extern "C" __attribute__((visibility("default"))) int zelda64_android_get_touch_targeting_mode() {
+    return getTouchIntegerPreference("getTouchTargetingModeFromNative", 0);
+}
+
+extern "C" __attribute__((visibility("default"))) void zelda64_android_set_touch_targeting_mode(
+    int mode) {
+    setTouchIntegerPreference("setTouchTargetingModeFromNative", mode);
+}

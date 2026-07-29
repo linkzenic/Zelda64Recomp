@@ -33,16 +33,6 @@
                         <div class="button__label" data-if="android_touch_controls_mode == 3">GC Layout</div>
                     </button>
                     <button
-                        class="button button--primary"
-                        style="nav-down:#touch_camera_x_sensitivity"
-                        data-if="android_has_touch_controls && android_touch_controls_mode != 0"
-                        data-event-click="cycle_android_touch_targeting"
-                    >
-                        <div class="button__label" data-if="android_touch_targeting_mode == 0">Hybrid Targeting</div>
-                        <div class="button__label" data-if="android_touch_targeting_mode == 1">Hold Targeting</div>
-                        <div class="button__label" data-if="android_touch_targeting_mode == 2">Toggle Targeting</div>
-                    </button>
-                    <button
                         class="button button--warning"
                         style="nav-down:#input_row_button_0_0"
                         data-event-click="reset_input_bindings_to_defaults"

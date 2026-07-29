@@ -304,12 +304,3 @@ extern "C" __attribute__((visibility("default"))) void zelda64_android_set_touch
     int sensitivity) {
     setTouchIntegerPreference("setTouchCameraYSensitivityFromNative", sensitivity);
 }
-
-extern "C" __attribute__((visibility("default"))) int zelda64_android_get_touch_targeting_mode() {
-    return getTouchIntegerPreference("getTouchTargetingModeFromNative", 0);
-}
-
-extern "C" __attribute__((visibility("default"))) void zelda64_android_set_touch_targeting_mode(
-    int mode) {
-    setTouchIntegerPreference("setTouchTargetingModeFromNative", mode);
-}

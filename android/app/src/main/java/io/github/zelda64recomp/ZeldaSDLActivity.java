@@ -65,7 +65,6 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
     private static final float LEFT_STICK_DRAG_RADIUS_DP = 51.0f;
     private static final float LEFT_TOUCH_ZONE_WIDTH = 0.46f;
     private static final float RIGHT_TOUCH_ZONE_START = 0.52f;
-    private static final long TOUCH_TARGETING_DOUBLE_TAP_MS = 300;
     private static final int REQUEST_OPEN_FILE = 0x5A64;
     private static final int REQUEST_STORAGE_PERMISSION = 0x5A65;
     private static final int REQUEST_OPEN_MOD_FILES = 0x5A66;
@@ -79,13 +78,9 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
     private static final String PREF_TOUCH_FACE_BUTTON_LAYOUT = "touchFaceButtonLayout";
     private static final String PREF_TOUCH_CAMERA_X_SENSITIVITY = "touchCameraXSensitivity";
     private static final String PREF_TOUCH_CAMERA_Y_SENSITIVITY = "touchCameraYSensitivity";
-    private static final String PREF_TOUCH_TARGETING_MODE = "touchTargetingMode";
     private static final int TOUCH_FACE_BUTTON_LAYOUT_ABXY = 0;
     private static final int TOUCH_FACE_BUTTON_LAYOUT_BAYX = 1;
     private static final int TOUCH_FACE_BUTTON_LAYOUT_GAMECUBE = 2;
-    private static final int TOUCH_TARGETING_HYBRID = 0;
-    private static final int TOUCH_TARGETING_HOLD = 1;
-    private static final int TOUCH_TARGETING_TOGGLE = 2;
     private static final String[] USER_DATA_SUBDIRS = {
             "mods",
             "mod_config",
@@ -194,9 +189,8 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
     private int rightStickPointerId = MotionEvent.INVALID_POINTER_ID;
     private float rightStickStartX;
     private float rightStickStartY;
-    private boolean touchTargetingLatched;
-    private boolean touchTargetingPressed;
-    private long lastTouchTargetTapTime;
+    private volatile int touchCameraXSensitivity = 100;
+    private volatile int touchCameraYSensitivity = 100;
     private final Runnable touchControllerAttachRetry = this::retryTouchControllerAttach;
 
     @Override
@@ -205,6 +199,10 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
         currentActivity = this;
         lockLandscape();
         preferences = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        touchCameraXSensitivity = clampTouchSensitivity(
+                preferences.getInt(PREF_TOUCH_CAMERA_X_SENSITIVITY, 100));
+        touchCameraYSensitivity = clampTouchSensitivity(
+                preferences.getInt(PREF_TOUCH_CAMERA_Y_SENSITIVITY, 100));
         installJavaCrashHandler();
 
         programDir = new File(getFilesDir(), "program");
@@ -539,7 +537,8 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
                 PREF_TOUCH_FACE_BUTTON_LAYOUT, TOUCH_FACE_BUTTON_LAYOUT_ABXY));
         addButtonTouchListener(overlayView.findViewById(R.id.buttonL), ControllerButtons.BUTTON_LB);
         addButtonTouchListener(overlayView.findViewById(R.id.buttonR), ControllerButtons.BUTTON_RB);
-        setupTargetButton(overlayView.findViewById(R.id.buttonZ));
+        addAxisButtonTouchListener(overlayView.findViewById(R.id.buttonZ),
+                ControllerButtons.AXIS_LT, Short.MAX_VALUE);
         addAxisButtonTouchListener(overlayView.findViewById(R.id.buttonZR),
                 ControllerButtons.AXIS_RT, Short.MAX_VALUE);
         addButtonTouchListener(overlayView.findViewById(R.id.buttonStart), ControllerButtons.BUTTON_START);
@@ -672,26 +671,28 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
     }
 
     public int getTouchCameraXSensitivityFromNative() {
-        return preferences == null ? 100
-                : preferences.getInt(PREF_TOUCH_CAMERA_X_SENSITIVITY, 100);
+        return touchCameraXSensitivity;
     }
 
     public void setTouchCameraXSensitivityFromNative(int sensitivity) {
+        int normalizedSensitivity = clampTouchSensitivity(sensitivity);
+        touchCameraXSensitivity = normalizedSensitivity;
         if (preferences != null) {
             preferences.edit().putInt(PREF_TOUCH_CAMERA_X_SENSITIVITY,
-                    clampTouchSensitivity(sensitivity)).apply();
+                    normalizedSensitivity).apply();
         }
     }
 
     public int getTouchCameraYSensitivityFromNative() {
-        return preferences == null ? 100
-                : preferences.getInt(PREF_TOUCH_CAMERA_Y_SENSITIVITY, 100);
+        return touchCameraYSensitivity;
     }
 
     public void setTouchCameraYSensitivityFromNative(int sensitivity) {
+        int normalizedSensitivity = clampTouchSensitivity(sensitivity);
+        touchCameraYSensitivity = normalizedSensitivity;
         if (preferences != null) {
             preferences.edit().putInt(PREF_TOUCH_CAMERA_Y_SENSITIVITY,
-                    clampTouchSensitivity(sensitivity)).apply();
+                    normalizedSensitivity).apply();
         }
     }
 
@@ -699,100 +700,10 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
         return Math.max(25, Math.min(400, sensitivity));
     }
 
-    public int getTouchTargetingModeFromNative() {
-        return preferences == null ? TOUCH_TARGETING_HYBRID
-                : preferences.getInt(PREF_TOUCH_TARGETING_MODE, TOUCH_TARGETING_HYBRID);
-    }
-
-    public void setTouchTargetingModeFromNative(int mode) {
-        int normalizedMode = mode >= TOUCH_TARGETING_HYBRID && mode <= TOUCH_TARGETING_TOGGLE
-                ? mode : TOUCH_TARGETING_HYBRID;
-        if (preferences != null) {
-            preferences.edit().putInt(PREF_TOUCH_TARGETING_MODE, normalizedMode).apply();
-        }
-        runOnUiThread(this::resetTouchTargetingState);
-    }
-
     private void setTouchButtonPressed(Button button, boolean pressed) {
         button.setPressed(pressed);
         float scale = pressed ? 0.92f : 1.0f;
         button.animate().scaleX(scale).scaleY(scale).setDuration(60).start();
-    }
-
-    private void resetTouchTargetingState() {
-        touchTargetingLatched = false;
-        touchTargetingPressed = false;
-        lastTouchTargetTapTime = 0;
-        setAxis(ControllerButtons.AXIS_LT, (short) 0);
-        setTargetButtonsPressed(false);
-    }
-
-    private void setTargetButtonsPressed(boolean pressed) {
-        if (overlayView == null) {
-            return;
-        }
-        setTouchButtonPressed(overlayView.findViewById(R.id.buttonZ), pressed);
-    }
-
-    private void setupTargetButton(Button button) {
-        button.setOnTouchListener((view, event) -> {
-            int targetingMode = getTouchTargetingModeFromNative();
-            switch (event.getActionMasked()) {
-                case MotionEvent.ACTION_DOWN: {
-                    ensureTouchControllerAttached();
-                    if (targetingMode == TOUCH_TARGETING_HOLD) {
-                        touchTargetingPressed = true;
-                        setAxis(ControllerButtons.AXIS_LT, Short.MAX_VALUE);
-                        setTargetButtonsPressed(true);
-                        return true;
-                    }
-
-                    if (touchTargetingLatched) {
-                        touchTargetingLatched = false;
-                        touchTargetingPressed = false;
-                        lastTouchTargetTapTime = 0;
-                        setAxis(ControllerButtons.AXIS_LT, (short) 0);
-                        setTargetButtonsPressed(false);
-                        return true;
-                    }
-
-                    if (targetingMode == TOUCH_TARGETING_TOGGLE) {
-                        touchTargetingLatched = true;
-                        setAxis(ControllerButtons.AXIS_LT, Short.MAX_VALUE);
-                        setTargetButtonsPressed(true);
-                        return true;
-                    }
-
-                    long now = android.os.SystemClock.uptimeMillis();
-                    if (lastTouchTargetTapTime != 0 &&
-                            now - lastTouchTargetTapTime <= TOUCH_TARGETING_DOUBLE_TAP_MS) {
-                        touchTargetingLatched = true;
-                        touchTargetingPressed = false;
-                        lastTouchTargetTapTime = 0;
-                    } else {
-                        touchTargetingPressed = true;
-                    }
-                    setAxis(ControllerButtons.AXIS_LT, Short.MAX_VALUE);
-                    setTargetButtonsPressed(true);
-                    return true;
-                }
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
-                    if (targetingMode == TOUCH_TARGETING_HOLD) {
-                        touchTargetingPressed = false;
-                        setAxis(ControllerButtons.AXIS_LT, (short) 0);
-                        setTargetButtonsPressed(false);
-                    } else if (!touchTargetingLatched && touchTargetingPressed) {
-                        touchTargetingPressed = false;
-                        lastTouchTargetTapTime = android.os.SystemClock.uptimeMillis();
-                        setAxis(ControllerButtons.AXIS_LT, (short) 0);
-                        setTargetButtonsPressed(false);
-                    }
-                    return true;
-                default:
-                    return true;
-            }
-        });
     }
 
     private void addButtonTouchListener(Button button, int buttonNum) {
@@ -921,8 +832,8 @@ public class ZeldaSDLActivity extends SDLActivity implements SensorEventListener
 
         int rightIndex = event.findPointerIndex(rightStickPointerId);
         if (rightIndex >= 0) {
-            float sensitivityX = getTouchCameraXSensitivityFromNative() / 100.0f;
-            float sensitivityY = getTouchCameraYSensitivityFromNative() / 100.0f;
+            float sensitivityX = touchCameraXSensitivity / 100.0f;
+            float sensitivityY = touchCameraYSensitivity / 100.0f;
             float deltaX = (event.getX(rightIndex) - rightStickStartX) * sensitivityX;
             float deltaY = (event.getY(rightIndex) - rightStickStartY) * sensitivityY;
             float distance = (float) Math.sqrt(deltaX * deltaX + deltaY * deltaY);

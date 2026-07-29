@@ -35,8 +35,6 @@ extern "C" int zelda64_android_get_touch_camera_x_sensitivity();
 extern "C" void zelda64_android_set_touch_camera_x_sensitivity(int sensitivity);
 extern "C" int zelda64_android_get_touch_camera_y_sensitivity();
 extern "C" void zelda64_android_set_touch_camera_y_sensitivity(int sensitivity);
-extern "C" int zelda64_android_get_touch_targeting_mode();
-extern "C" void zelda64_android_set_touch_targeting_mode(int mode);
 #endif
 
 int recompui::config_tab_to_index(recompui::ConfigTab tab) {
@@ -978,14 +976,6 @@ public:
                 zelda64_android_set_touch_camera_y_sensitivity(in.Get<int>());
 #endif
             });
-        constructor.BindFunc("android_touch_targeting_mode", [](Rml::Variant& out) {
-#if defined(__ANDROID__)
-            out = zelda64_android_get_touch_targeting_mode();
-#else
-            out = 0;
-#endif
-        });
-
         constructor.RegisterTransformFunc("get_input_name", [](const Rml::VariantList& inputs) {
             return Rml::Variant{recomp::get_input_name(static_cast<recomp::GameInput>(inputs.at(0).Get<size_t>()))};
         });
@@ -1033,15 +1023,6 @@ public:
                 model_handle.DirtyVariable("android_touch_controls_mode");
 #endif
             });
-        constructor.BindEventCallback("cycle_android_touch_targeting",
-            [](Rml::DataModelHandle model_handle, Rml::Event& event, const Rml::VariantList& inputs) {
-#if defined(__ANDROID__)
-                const int next_mode = (zelda64_android_get_touch_targeting_mode() + 1) % 3;
-                zelda64_android_set_touch_targeting_mode(next_mode);
-                model_handle.DirtyVariable("android_touch_targeting_mode");
-#endif
-            });
-
         constructor.BindEventCallback("clear_input_bindings",
             [](Rml::DataModelHandle model_handle, Rml::Event& event, const Rml::VariantList& inputs) {
                 recomp::GameInput input = static_cast<recomp::GameInput>(inputs.at(0).Get<size_t>());
